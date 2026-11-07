@@ -1,0 +1,27 @@
+import { recordArticleView } from "@/lib/services/feedback-service";
+import { createHandler } from "@/lib/api-handler";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * POST /api/user/articles/[id]/view
+ * Track when user opens an article
+ */
+export const POST = createHandler(
+  async ({ params, session }) => {
+    const { id: articleId } = params;
+
+    if (!articleId) {
+      return { error: "Article ID is required", status: 400 };
+    }
+
+    const viewData = await recordArticleView(session!.user!.id, articleId);
+
+    return {
+      viewedAt: viewData.viewedAt,
+      estimatedTime: viewData.estimatedTime,
+    };
+  },
+  { requireAuth: true }
+);
+

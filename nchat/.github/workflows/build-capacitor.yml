@@ -1,0 +1,332 @@
+name: Build Capacitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Target platform'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+  workflow_call:
+    inputs:
+      platform:
+        required: false
+        type: string
+        default: 'all'
+      build_type:
+        required: false
+        type: string
+        default: 'debug'
+
+env:
+  NODE_VERSION: '22'
+  JAVA_VERSION: '17'
+
+jobs:
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    if: inputs.platform == 'all' || inputs.platform == 'ios'
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web assets
+        # next build always runs with NODE_ENV=production internally, which
+        # trips the build gate in next.config.js (throws BUILD GATE FIRED
+        # without HASURA_ADMIN_SECRET set) — this workflow was the only
+        # nchat CI workflow running `pnpm build` without it (ci.yml,
+        # pr-checks.yml, lighthouse-ci.yml, accessibility.yml all already
+        # set the same CI placeholder). The app never connects to a real
+        # Hasura instance here; this only satisfies the gate check.
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_USE_DEV_AUTH: 'false'
+          HASURA_ADMIN_SECRET: ${{ secrets.HASURA_ADMIN_SECRET || 'ci-placeholder-not-a-real-secret' }}
+
+      - name: Set Capacitor server.url (remote-hosted content mode)
+        # Capacitor's webDir mode needs a locally bundled static dist/ dir,
+        # which this repo's Next.js build never produces (server mode emits
+        # .next/, standalone mode emits .next/standalone + .next/static —
+        # neither is a dist/). Static export is ruled out: frontend/src/app/api/
+        # has server-only API routes next export cannot support. nchat also
+        # requires a live Hasura + Nhost Auth backend for any real screen
+        # (see nchat PRI "Dual Auth"), so a fully offline bundle could never
+        # authenticate anyway. The correct Capacitor mode here is
+        # remote-hosted content: point server.url at the deployed origin so
+        # the native shell is a thin WebView, matching the environment
+        # ternary already used at .github/workflows/deploy-k8s.yml:191,194.
+        env:
+          SERVER_URL: ${{ inputs.build_type == 'release' && 'https://chat.nself.org' || 'https://chat-staging.nself.org' }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'platforms/mobile/capacitor.config.json';
+            const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+            cfg.server = Object.assign({}, cfg.server, { url: process.env.SERVER_URL, cleartext: false });
+            fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
+            console.log('server.url ->', process.env.SERVER_URL);
+          "
+
+      - name: Create placeholder web assets (Capacitor requires webDir to exist)
+        # cap sync's asset-copy step is a soft no-op in server.url/remote-hosted
+        # mode (logs "not an error because server.url is set"), but it still
+        # needs the webDir to physically exist: the copy step is what creates
+        # android/app/src/main/assets/(public), and cap sync's own write of
+        # capacitor.config.json/capacitor.plugins.json into that same assets/
+        # dir fails with ENOENT when the dir was never created (confirmed live
+        # 2026-08-31, run 33403102433). A minimal placeholder index.html is
+        # never actually served at runtime (server.url wins), it only exists
+        # so the native assets directory chain gets created.
+        working-directory: frontend/platforms/mobile
+        run: |
+          mkdir -p dist
+          printf '%s' '<!doctype html><html><head><meta charset="utf-8"><title>nChat</title></head><body></body></html>' > dist/index.html
+
+      - name: Add + Sync Capacitor iOS
+        working-directory: frontend/platforms/mobile
+        run: |
+          npx cap add ios 2>/dev/null || true
+          npx cap sync ios
+
+      - name: Install CocoaPods
+        run: |
+          cd platforms/mobile/ios/App
+          pod install
+
+      - name: Build iOS (Debug)
+        if: inputs.build_type == 'debug'
+        run: |
+          cd platforms/mobile/ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Install Apple Certificate
+        if: inputs.build_type == 'release'
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT }}
+          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      - name: Install Provisioning Profile
+        if: inputs.build_type == 'release'
+        uses: apple-actions/download-provisioning-profiles@v7
+        with:
+          bundle-id: 'com.nself.chat'
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Build iOS (Release)
+        if: inputs.build_type == 'release'
+        run: |
+          cd platforms/mobile/ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            archive
+
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: capacitor-ios-${{ inputs.build_type }}
+          path: |
+            frontend/platforms/mobile/ios/App/build/export/*.ipa
+            frontend/platforms/mobile/ios/App/build/Build/Products/Debug-iphonesimulator/*.app
+          retention-days: 14
+
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    if: inputs.platform == 'all' || inputs.platform == 'android'
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web assets
+        # next build always runs with NODE_ENV=production internally, which
+        # trips the build gate in next.config.js (throws BUILD GATE FIRED
+        # without HASURA_ADMIN_SECRET set) — this workflow was the only
+        # nchat CI workflow running `pnpm build` without it (ci.yml,
+        # pr-checks.yml, lighthouse-ci.yml, accessibility.yml all already
+        # set the same CI placeholder). The app never connects to a real
+        # Hasura instance here; this only satisfies the gate check.
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_USE_DEV_AUTH: 'false'
+          HASURA_ADMIN_SECRET: ${{ secrets.HASURA_ADMIN_SECRET || 'ci-placeholder-not-a-real-secret' }}
+
+      - name: Set Capacitor server.url (remote-hosted content mode)
+        # Capacitor's webDir mode needs a locally bundled static dist/ dir,
+        # which this repo's Next.js build never produces (server mode emits
+        # .next/, standalone mode emits .next/standalone + .next/static —
+        # neither is a dist/). Static export is ruled out: frontend/src/app/api/
+        # has server-only API routes next export cannot support. nchat also
+        # requires a live Hasura + Nhost Auth backend for any real screen
+        # (see nchat PRI "Dual Auth"), so a fully offline bundle could never
+        # authenticate anyway. The correct Capacitor mode here is
+        # remote-hosted content: point server.url at the deployed origin so
+        # the native shell is a thin WebView, matching the environment
+        # ternary already used at .github/workflows/deploy-k8s.yml:191,194.
+        env:
+          SERVER_URL: ${{ inputs.build_type == 'release' && 'https://chat.nself.org' || 'https://chat-staging.nself.org' }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'platforms/mobile/capacitor.config.json';
+            const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+            cfg.server = Object.assign({}, cfg.server, { url: process.env.SERVER_URL, cleartext: false });
+            fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
+            console.log('server.url ->', process.env.SERVER_URL);
+          "
+
+      - name: Create placeholder web assets (Capacitor requires webDir to exist)
+        # cap sync's asset-copy step is a soft no-op in server.url/remote-hosted
+        # mode (logs "not an error because server.url is set"), but it still
+        # needs the webDir to physically exist: the copy step is what creates
+        # android/app/src/main/assets/(public), and cap sync's own write of
+        # capacitor.config.json/capacitor.plugins.json into that same assets/
+        # dir fails with ENOENT when the dir was never created (confirmed live
+        # 2026-08-31, run 33403102433). A minimal placeholder index.html is
+        # never actually served at runtime (server.url wins), it only exists
+        # so the native assets directory chain gets created.
+        working-directory: frontend/platforms/mobile
+        run: |
+          mkdir -p dist
+          printf '%s' '<!doctype html><html><head><meta charset="utf-8"><title>nChat</title></head><body></body></html>' > dist/index.html
+
+      - name: Add + Sync Capacitor Android
+        working-directory: frontend/platforms/mobile
+        run: |
+          npx cap add android 2>/dev/null || true
+          npx cap sync android
+
+      # setup-java's gradle cache keys off gradle-wrapper.properties / build.gradle
+      # files, which do not exist until Capacitor generates the native android/
+      # project above (it is gitignored, not committed) — so this step must run
+      # after "Add + Sync Capacitor Android", not before.
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+          cache-dependency-path: frontend/platforms/mobile/android/**/*.gradle*
+
+      - name: Build Android (Debug)
+        if: inputs.build_type == 'debug'
+        run: |
+          cd platforms/mobile/android
+          ./gradlew assembleDebug
+
+      - name: Decode Keystore
+        if: inputs.build_type == 'release'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > platforms/mobile/android/app/release.keystore
+
+      - name: Build Android (Release)
+        if: inputs.build_type == 'release'
+        run: |
+          cd platforms/mobile/android
+          ./gradlew assembleRelease bundleRelease
+        env:
+          KEYSTORE_FILE: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: capacitor-android-${{ inputs.build_type }}
+          path: |
+            frontend/platforms/mobile/android/app/build/outputs/apk/**/*.apk
+            frontend/platforms/mobile/android/app/build/outputs/bundle/**/*.aab
+          retention-days: 14
+
+  combine:
+    name: Combine Artifacts
+    runs-on: ubuntu-latest
+    needs: [build-ios, build-android]
+    if: always() && (needs.build-ios.result == 'success' || needs.build-android.result == 'success')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: capacitor-*
+
+      - name: List artifacts
+        run: find artifacts -type f -name "*"
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: capacitor-all-platforms-${{ inputs.build_type }}
+          path: artifacts/
+          retention-days: 14

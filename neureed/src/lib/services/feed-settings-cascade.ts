@@ -1,0 +1,330 @@
+/**
+ * Feed Settings Cascade Service
+ * Handles cascading configuration from user defaults → category settings → feed settings
+ */
+
+import { prisma } from "@/lib/db";
+import { logger } from "@/lib/logger";
+
+/**
+ * Summarization settings
+ */
+export interface SummarizationSettings {
+  enabled: boolean;
+  minContentLength: number; // Only summarize if content exceeds this length
+  includeKeyPoints: boolean;
+  includeTopics: boolean;
+}
+
+/**
+ * Effective feed settings after applying cascade logic
+ */
+export interface EffectiveFeedSettings {
+  refreshInterval: number; // in minutes
+  maxArticlesPerFeed: number;
+  maxArticleAge: number; // in days
+  summarization: SummarizationSettings;
+  source: {
+    refreshInterval: "feed" | "category" | "user" | "system";
+    maxArticlesPerFeed: "feed" | "category" | "user" | "system";
+    maxArticleAge: "feed" | "category" | "user" | "system";
+    summarization: "feed" | "category" | "user" | "system";
+  };
+}
+
+/**
+ * Feed settings from JSON
+ */
+interface FeedSettingsJson {
+  refreshInterval?: number;
+  maxArticlesPerFeed?: number;
+  maxArticleAge?: number;
+  summarization?: Partial<SummarizationSettings>;
+}
+
+/**
+ * System defaults
+ */
+const SYSTEM_DEFAULTS = {
+  refreshInterval: 60, // 60 minutes
+  maxArticlesPerFeed: 500,
+  maxArticleAge: 90, // 90 days
+  summarization: {
+    enabled: false, // Disabled by default
+    minContentLength: 5000, // 5000 characters
+    includeKeyPoints: true,
+    includeTopics: true,
+  },
+};
+
+/**
+ * Get effective feed settings for a user's feed subscription
+ * Cascade priority: UserFeed > UserCategory > UserPreferences > Feed > System Default
+ */
+export async function getEffectiveFeedSettings(
+  userId: string,
+  feedId: string
+): Promise<EffectiveFeedSettings> {
+  try {
+    // Get user's feed subscription with categories
+    const userFeed = await prisma.user_feeds.findUnique({
+      where: {
+        userId_feedId: {
+          userId,
+          feedId,
+        },
+      },
+      include: {
+        feeds: true,
+        user_feed_categories: {
+          include: {
+            user_categories: true,
+          },
+        },
+      },
+    });
+
+    if (!userFeed) {
+      // User not subscribed to this feed, use system defaults
+      logger.warn("User not subscribed to feed, using system defaults", {
+        userId,
+        feedId,
+      });
+      return {
+        refreshInterval: SYSTEM_DEFAULTS.refreshInterval,
+        maxArticlesPerFeed: SYSTEM_DEFAULTS.maxArticlesPerFeed,
+        maxArticleAge: SYSTEM_DEFAULTS.maxArticleAge,
+        summarization: { ...SYSTEM_DEFAULTS.summarization },
+        source: {
+          refreshInterval: "system",
+          maxArticlesPerFeed: "system",
+          maxArticleAge: "system",
+          summarization: "system",
+        },
+      };
+    }
+
+    // Get user preferences
+    const userPreferences = await prisma.user_preferences.findUnique({
+      where: { userId },
+    });
+
+    // Initialize with system defaults
+    let refreshInterval = SYSTEM_DEFAULTS.refreshInterval;
+    let maxArticlesPerFeed = SYSTEM_DEFAULTS.maxArticlesPerFeed;
+    let maxArticleAge = SYSTEM_DEFAULTS.maxArticleAge;
+    const summarization: SummarizationSettings = {
+      ...SYSTEM_DEFAULTS.summarization,
+    };
+
+    const source: {
+      refreshInterval: "feed" | "category" | "user" | "system";
+      maxArticlesPerFeed: "feed" | "category" | "user" | "system";
+      maxArticleAge: "feed" | "category" | "user" | "system";
+      summarization: "feed" | "category" | "user" | "system";
+    } = {
+      refreshInterval: "system",
+      maxArticlesPerFeed: "system",
+      maxArticleAge: "system",
+      summarization: "system",
+    };
+
+    // Apply user preferences defaults
+    if (userPreferences) {
+      if (userPreferences.defaultRefreshInterval) {
+        refreshInterval = userPreferences.defaultRefreshInterval;
+        source.refreshInterval = "user";
+      }
+      if (userPreferences.defaultMaxArticlesPerFeed) {
+        maxArticlesPerFeed = userPreferences.defaultMaxArticlesPerFeed;
+        source.maxArticlesPerFeed = "user";
+      }
+      if (userPreferences.defaultMaxArticleAge) {
+        maxArticleAge = userPreferences.defaultMaxArticleAge;
+        source.maxArticleAge = "user";
+      }
+    }
+
+    // Apply category settings (if feed is in a category)
+    // Note: If feed is in multiple categories, use the first one
+    if (userFeed.user_feed_categories.length > 0) {
+      const firstCategory = userFeed.user_feed_categories[0];
+      if (firstCategory) {
+        const categorySettings = firstCategory.user_categories.settings as FeedSettingsJson | null;
+
+        if (categorySettings) {
+        if (
+          categorySettings.refreshInterval !== undefined &&
+          categorySettings.refreshInterval !== null
+        ) {
+          refreshInterval = categorySettings.refreshInterval;
+          source.refreshInterval = "category";
+        }
+        if (
+          categorySettings.maxArticlesPerFeed !== undefined &&
+          categorySettings.maxArticlesPerFeed !== null
+        ) {
+          maxArticlesPerFeed = categorySettings.maxArticlesPerFeed;
+          source.maxArticlesPerFeed = "category";
+        }
+        if (
+          categorySettings.maxArticleAge !== undefined &&
+          categorySettings.maxArticleAge !== null
+        ) {
+          maxArticleAge = categorySettings.maxArticleAge;
+          source.maxArticleAge = "category";
+        }
+        if (categorySettings.summarization) {
+          Object.assign(summarization, categorySettings.summarization);
+          source.summarization = "category";
+        }
+      }
+      }
+    }
+
+    // Apply feed-specific settings (highest priority)
+    const feedSettings = userFeed.settings as FeedSettingsJson | null;
+    if (feedSettings) {
+      if (
+        feedSettings.refreshInterval !== undefined &&
+        feedSettings.refreshInterval !== null
+      ) {
+        refreshInterval = feedSettings.refreshInterval;
+        source.refreshInterval = "feed";
+      }
+      if (
+        feedSettings.maxArticlesPerFeed !== undefined &&
+        feedSettings.maxArticlesPerFeed !== null
+      ) {
+        maxArticlesPerFeed = feedSettings.maxArticlesPerFeed;
+        source.maxArticlesPerFeed = "feed";
+      }
+      if (
+        feedSettings.maxArticleAge !== undefined &&
+        feedSettings.maxArticleAge !== null
+      ) {
+        maxArticleAge = feedSettings.maxArticleAge;
+        source.maxArticleAge = "feed";
+      }
+      if (feedSettings.summarization) {
+        Object.assign(summarization, feedSettings.summarization);
+        source.summarization = "feed";
+      }
+    }
+
+    return {
+      refreshInterval,
+      maxArticlesPerFeed,
+      maxArticleAge,
+      summarization,
+      source,
+    };
+  } catch (error) {
+    logger.error("Failed to get effective feed settings", {
+      userId,
+      feedId,
+      error,
+    });
+    // Return system defaults on error
+    return {
+      refreshInterval: SYSTEM_DEFAULTS.refreshInterval,
+      maxArticlesPerFeed: SYSTEM_DEFAULTS.maxArticlesPerFeed,
+      maxArticleAge: SYSTEM_DEFAULTS.maxArticleAge,
+      summarization: { ...SYSTEM_DEFAULTS.summarization },
+      source: {
+        refreshInterval: "system",
+        maxArticlesPerFeed: "system",
+        maxArticleAge: "system",
+        summarization: "system",
+      },
+    };
+  }
+}
+
+/**
+ * Get effective settings for all feeds a user is subscribed to
+ */
+export async function getAllUserFeedSettings(
+  userId: string
+): Promise<Map<string, EffectiveFeedSettings>> {
+  const userFeeds = await prisma.user_feeds.findMany({
+    where: { userId },
+    select: { feedId: true },
+  });
+
+  const settingsMap = new Map<string, EffectiveFeedSettings>();
+
+  for (const userFeed of userFeeds) {
+    const settings = await getEffectiveFeedSettings(userId, userFeed.feedId);
+    settingsMap.set(userFeed.feedId, settings);
+  }
+
+  return settingsMap;
+}
+
+/**
+ * Validate feed settings values
+ */
+export function validateFeedSettings(settings: Partial<FeedSettingsJson>): {
+  valid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  if (settings.refreshInterval !== undefined) {
+    if (settings.refreshInterval < 15 || settings.refreshInterval > 1440) {
+      errors.push("refreshInterval must be between 15 and 1440 minutes");
+    }
+  }
+
+  if (settings.maxArticlesPerFeed !== undefined) {
+    if (
+      settings.maxArticlesPerFeed < 50 ||
+      settings.maxArticlesPerFeed > 5000
+    ) {
+      errors.push("maxArticlesPerFeed must be between 50 and 5000");
+    }
+  }
+
+  if (settings.maxArticleAge !== undefined) {
+    if (settings.maxArticleAge < 1 || settings.maxArticleAge > 365) {
+      errors.push("maxArticleAge must be between 1 and 365 days");
+    }
+  }
+
+  if (settings.summarization) {
+    if (
+      settings.summarization.minContentLength !== undefined &&
+      (settings.summarization.minContentLength < 100 ||
+        settings.summarization.minContentLength > 100000)
+    ) {
+      errors.push(
+        "summarization.minContentLength must be between 100 and 100000 characters"
+      );
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Get system default settings
+ */
+export function getSystemDefaults(): EffectiveFeedSettings {
+  return {
+    refreshInterval: SYSTEM_DEFAULTS.refreshInterval,
+    maxArticlesPerFeed: SYSTEM_DEFAULTS.maxArticlesPerFeed,
+    maxArticleAge: SYSTEM_DEFAULTS.maxArticleAge,
+    summarization: { ...SYSTEM_DEFAULTS.summarization },
+    source: {
+      refreshInterval: "system",
+      maxArticlesPerFeed: "system",
+      maxArticleAge: "system",
+      summarization: "system",
+    },
+  };
+}
+

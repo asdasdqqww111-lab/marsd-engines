@@ -1,0 +1,303 @@
+name: Desktop — macOS (Tauri 2)
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'desktop/**'
+      # desktop/ bundles the workspace packages it depends on (@nself-chat/ui,
+      # @nself-chat/state, ...), so a change there can break this build.
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/desktop-macos.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            runner: macos-15
+            rust_target: aarch64-apple-darwin
+          - arch: x64
+            runner: macos-15-intel
+            rust_target: x86_64-apple-darwin
+
+    name: Build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # desktop/package.json links five @nself/* packages (auth-core, graphql-client,
+      # i18n, observability, ui) from the nself-org/packages repo as a SIBLING
+      # directory (link:../../packages/@nself/<name>), and desktop/src/main.tsx
+      # imports @nself/observability directly. Checking out only
+      # nchat leaves those unresolvable, and the Vite build dies with
+      # 'Rollup failed to resolve import "@nself/observability"'.
+      #
+      # Check out into a subdirectory and MOVE it to the sibling path rather than
+      # symlinking: pnpm writes relative node_modules links that resolve against the
+      # physical path, so they dangle through a symlink (see nsentry ci.yml).
+      - name: Checkout @nself packages (sibling workspace dir)
+        uses: actions/checkout@v7
+        with:
+          repository: nself-org/packages
+          # Pinned, not floating, so the desktop build is reproducible. nchat's
+          # pnpm-lock.yaml does not depend on this checkout: the sibling installs
+          # its own dependencies from its own lockfile (step after the nchat
+          # install). Bump this sha when the desktop needs newer @nself/* code.
+          ref: 8a5cc53106fae71474f822003645d1f51dcfcd95
+          path: _nself_packages
+          persist-credentials: false
+
+      - name: Move @nself packages to the sibling path pnpm expects
+        shell: bash
+        run: |
+          PARENT_DIR="$(dirname "$GITHUB_WORKSPACE")"
+          rm -rf "$PARENT_DIR/packages"
+          mv "$GITHUB_WORKSPACE/_nself_packages" "$PARENT_DIR/packages"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+          key: macos-${{ matrix.arch }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+
+      - name: Install pnpm deps
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      # The linked @nself/* packages export TypeScript source, so Vite compiles
+      # them and resolves their imports (i18next, @urql/core, ...) from the
+      # sibling's own node_modules. Install those from the sibling's lockfile.
+      - name: Install @nself packages deps (sibling's own lockfile)
+        shell: bash
+        run: pnpm --dir "$(dirname "$GITHUB_WORKSPACE")/packages" install --frozen-lockfile --ignore-scripts
+
+      - name: Build workspace packages (@nself-chat/ui etc.)
+        working-directory: .
+        run: pnpm --filter "@nself-chat/ui" --filter "@nself-chat/core" --filter "@nself-chat/state" --filter "@nself-chat/config" build
+
+      # Updater artifacts are only signable on a release. This repo has no
+      # TAURI_SIGNING_PRIVATE_KEY at repo or org level, and tauri.conf.json sets
+      # createUpdaterArtifacts: true, so every build ran all the way to the very
+      # last step and died there:
+      #   failed to decode secret key: incorrect updater private key password:
+      #   Missing comment in secret key
+      # The deb/rpm/AppImage bundles were already built and written by then.
+      #
+      # Turn updater artifacts off for anything that is not a tag build. A PR has
+      # no business signing a release artifact. Tag builds are untouched and still
+      # sign, so the release path is unchanged.
+      #
+      # The override goes in a FILE, not inline after --config: the shell strips
+      # the double quotes out of an unquoted {"bundle":{...}} argument and Tauri
+      # then gets invalid JSON.
+      - name: Updater artifacts only on a tag build
+        id: updater
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "args=" >> "$GITHUB_OUTPUT"
+          else
+            CFG="${RUNNER_TEMP}/no-updater.json"
+            printf '%s' '{"bundle":{"createUpdaterArtifacts":false}}' > "$CFG"
+            echo "args=--config $CFG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Tauri (macOS ${{ matrix.arch }})
+        working-directory: desktop
+        shell: bash
+        # This repo has ZERO APPLE_* secrets (checked by name, 2026-09-14), and
+        # `${{ secrets.X }}` for an unset secret yields an env var that is DEFINED
+        # AND EMPTY. tauri-bundler does not treat that as "no identity": it runs
+        # `security import` on an empty certificate and the build dies with
+        #   failed to bundle project failed codesign application:
+        #   failed to run command security import: failed to import keychain certificate
+        # The variable has to be genuinely ABSENT for signing to be skipped, so
+        # export each one only when its secret actually has a value. nclaw hit the
+        # identical trap and documents it in its own desktop-macos.yml.
+        # An unsigned .app/.dmg on a PR is the correct outcome; a tag build with
+        # the secrets present signs exactly as before.
+        # if/fi rather than `[ -n X ] && export`: both survive set -e (bash
+        # ignores a failing non-final command in an && list, verified locally),
+        # but the explicit form says what it means and matches nclaw.
+        run: |
+          if [ -n "$APPLE_CERTIFICATE_SECRET" ]; then export APPLE_CERTIFICATE="$APPLE_CERTIFICATE_SECRET"; fi
+          if [ -n "$APPLE_CERTIFICATE_PASSWORD_SECRET" ]; then export APPLE_CERTIFICATE_PASSWORD="$APPLE_CERTIFICATE_PASSWORD_SECRET"; fi
+          if [ -n "$APPLE_SIGNING_IDENTITY_SECRET" ]; then export APPLE_SIGNING_IDENTITY="$APPLE_SIGNING_IDENTITY_SECRET"; fi
+          if [ -n "$APPLE_ID_SECRET" ]; then export APPLE_ID="$APPLE_ID_SECRET"; fi
+          if [ -n "$APPLE_PASSWORD_SECRET" ]; then export APPLE_PASSWORD="$APPLE_PASSWORD_SECRET"; fi
+          if [ -n "$APPLE_TEAM_ID_SECRET" ]; then export APPLE_TEAM_ID="$APPLE_TEAM_ID_SECRET"; fi
+          pnpm tauri build --target ${{ matrix.rust_target }} ${{ steps.updater.outputs.args }}
+        env:
+          APPLE_CERTIFICATE_SECRET: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD_SECRET: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY_SECRET: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD_SECRET: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # T27 — bundle size budget gate (arm64 only, ~10 MB threshold = 90 MB)
+      - name: Bundle size gate
+        if: matrix.arch == 'aarch64'
+        run: |
+          DMG=$(ls desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg/*.dmg 2>/dev/null | head -1)
+          if [ -z "$DMG" ]; then
+            echo "ERROR: no DMG found"
+            exit 1
+          fi
+          SIZE=$(du -m "$DMG" | cut -f1)
+          echo "Bundle size: ${SIZE} MB"
+          if [ "$SIZE" -gt 90 ]; then
+            echo "ERROR: Bundle ${SIZE} MB exceeds 90 MB budget"
+            exit 1
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos-${{ matrix.arch }}
+          path: |
+            desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz
+            desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz.sig
+          retention-days: 14
+
+      # T18 — publish updater feed to S3 (tag pushes only)
+      - name: Publish updater feed (S3)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.HETZNER_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.HETZNER_S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: eu-central-1
+          AWS_ENDPOINT_URL: https://fsn1.your-objectstorage.com
+        run: |
+          for sig in desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/*.app.tar.gz.sig; do
+            [ -f "$sig" ] || continue
+            aws s3 cp "$sig" s3://packages.nself.org/chat-desktop/ --endpoint-url "$AWS_ENDPOINT_URL"
+            aws s3 cp "${sig%.sig}" s3://packages.nself.org/chat-desktop/ --endpoint-url "$AWS_ENDPOINT_URL"
+          done
+
+  # T30 e2e via tauri-driver — only on tag push or workflow_dispatch
+  e2e:
+    name: E2E (Playwright + tauri-driver)
+    runs-on: macos-15
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # desktop/package.json links five @nself/* packages (auth-core, graphql-client,
+      # i18n, observability, ui) from the nself-org/packages repo as a SIBLING
+      # directory (link:../../packages/@nself/<name>), and desktop/src/main.tsx
+      # imports @nself/observability directly. Checking out only
+      # nchat leaves those unresolvable, and the Vite build dies with
+      # 'Rollup failed to resolve import "@nself/observability"'.
+      #
+      # Check out into a subdirectory and MOVE it to the sibling path rather than
+      # symlinking: pnpm writes relative node_modules links that resolve against the
+      # physical path, so they dangle through a symlink (see nsentry ci.yml).
+      - name: Checkout @nself packages (sibling workspace dir)
+        uses: actions/checkout@v7
+        with:
+          repository: nself-org/packages
+          # Pinned, not floating, so the desktop build is reproducible. nchat's
+          # pnpm-lock.yaml does not depend on this checkout: the sibling installs
+          # its own dependencies from its own lockfile (step after the nchat
+          # install). Bump this sha when the desktop needs newer @nself/* code.
+          ref: 8a5cc53106fae71474f822003645d1f51dcfcd95
+          path: _nself_packages
+          persist-credentials: false
+
+      - name: Move @nself packages to the sibling path pnpm expects
+        shell: bash
+        run: |
+          PARENT_DIR="$(dirname "$GITHUB_WORKSPACE")"
+          rm -rf "$PARENT_DIR/packages"
+          mv "$GITHUB_WORKSPACE/_nself_packages" "$PARENT_DIR/packages"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install deps
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      # The linked @nself/* packages export TypeScript source, so Vite compiles
+      # them and resolves their imports (i18next, @urql/core, ...) from the
+      # sibling's own node_modules. Install those from the sibling's lockfile.
+      - name: Install @nself packages deps (sibling's own lockfile)
+        shell: bash
+        run: pnpm --dir "$(dirname "$GITHUB_WORKSPACE")/packages" install --frozen-lockfile --ignore-scripts
+
+      - name: Build workspace packages (@nself-chat/ui etc.)
+        working-directory: .
+        run: pnpm --filter "@nself-chat/ui" --filter "@nself-chat/core" --filter "@nself-chat/state" --filter "@nself-chat/config" build
+
+      - name: Install Playwright browsers
+        working-directory: desktop
+        run: pnpx playwright install chromium
+
+      - name: Build (dev binary for e2e)
+        working-directory: desktop
+        run: pnpm tauri build --debug --target aarch64-apple-darwin
+
+      - name: Run e2e tests
+        working-directory: desktop
+        run: pnpm test:e2e
+        env:
+          TAURI_BINARY: src-tauri/target/aarch64-apple-darwin/debug/nchat-desktop

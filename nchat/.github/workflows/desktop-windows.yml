@@ -1,0 +1,207 @@
+name: Desktop — Windows (Tauri 2)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      # desktop/ bundles the workspace packages it depends on (@nself-chat/ui,
+      # @nself-chat/state, ...), so a change there can break this build.
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/desktop-windows.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+jobs:
+  build:
+    name: Build (x64)
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # desktop/package.json links five @nself/* packages (auth-core, graphql-client,
+      # i18n, observability, ui) from the nself-org/packages repo as a SIBLING
+      # directory (link:../../packages/@nself/<name>), and desktop/src/main.tsx
+      # imports @nself/observability directly. Checking out only
+      # nchat leaves those unresolvable, and the Vite build dies with
+      # 'Rollup failed to resolve import "@nself/observability"'.
+      #
+      # Check out into a subdirectory and MOVE it to the sibling path rather than
+      # symlinking: pnpm writes relative node_modules links that resolve against the
+      # physical path, so they dangle through a symlink (see nsentry ci.yml).
+      - name: Checkout @nself packages (sibling workspace dir)
+        uses: actions/checkout@v7
+        with:
+          repository: nself-org/packages
+          # Pinned, not floating, so the desktop build is reproducible. nchat's
+          # pnpm-lock.yaml does not depend on this checkout: the sibling installs
+          # its own dependencies from its own lockfile (step after the nchat
+          # install). Bump this sha when the desktop needs newer @nself/* code.
+          ref: 8a5cc53106fae71474f822003645d1f51dcfcd95
+          path: _nself_packages
+          persist-credentials: false
+
+      - name: Move @nself packages to the sibling path pnpm expects
+        shell: bash
+        run: |
+          PARENT_DIR="$(dirname "$GITHUB_WORKSPACE")"
+          rm -rf "$PARENT_DIR/packages"
+          mv "$GITHUB_WORKSPACE/_nself_packages" "$PARENT_DIR/packages"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+          key: windows-x64-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+
+      # Install everything EXCEPT the frontend web app.
+      #
+      # The exclusion is the part that matters: shamefully-hoist=true in .npmrc
+      # hoists every in-scope project's deps into the root node_modules, so a
+      # positive `--filter ...@nself-chat/desktop` does not on its own stop pnpm
+      # from resolving frontend's test-only native dep `canvas`, which has no
+      # Windows prebuilt and fails node-gyp on windows-2022 (no GTK/cairo dev
+      # headers). Dropping @nself-chat/web from the install graph is what skips it.
+      #
+      # The positive filters were the problem. Enumerating projects meant the
+      # install scope kept falling short of what the build then needed, one
+      # package at a time:
+      #   - packages/{ui,core,state,config} had no node_modules, so the build
+      #     step died with "'tsc' is not recognized" / "'tsup' is not recognized"
+      #   - then ../packages/@nself/i18n resolved but its own dependency i18next
+      #     did not, because that sibling was not in scope either. @nself/i18n
+      #     exports ./src/index.ts, so vite compiles its TypeScript source and
+      #     needs its real dependencies present, not just a link to the package.
+      # A single negative filter installs every workspace project except web,
+      # which is a superset of anything the build can reach.
+      - name: Install pnpm deps (everything except the web app)
+        working-directory: .
+        run: pnpm install --frozen-lockfile --filter "!@nself-chat/web"
+
+      # The linked @nself/* packages export TypeScript source, so Vite compiles
+      # them and resolves their imports (i18next, @urql/core, ...) from the
+      # sibling's own node_modules. Install those from the sibling's lockfile.
+      - name: Install @nself packages deps (sibling's own lockfile)
+        shell: bash
+        run: pnpm --dir "$(dirname "$GITHUB_WORKSPACE")/packages" install --frozen-lockfile --ignore-scripts
+
+      - name: Build workspace packages (@nself-chat/ui etc.)
+        working-directory: .
+        shell: bash
+        run: pnpm --filter "@nself-chat/ui" --filter "@nself-chat/core" --filter "@nself-chat/state" --filter "@nself-chat/config" build
+
+      # Updater artifacts are only signable on a release. This repo has no
+      # TAURI_SIGNING_PRIVATE_KEY at repo or org level, and tauri.conf.json sets
+      # createUpdaterArtifacts: true, so every build ran all the way to the very
+      # last step and died there:
+      #   failed to decode secret key: incorrect updater private key password:
+      #   Missing comment in secret key
+      # The deb/rpm/AppImage bundles were already built and written by then.
+      #
+      # Turn updater artifacts off for anything that is not a tag build. A PR has
+      # no business signing a release artifact. Tag builds are untouched and still
+      # sign, so the release path is unchanged.
+      #
+      # The override goes in a FILE, not inline after --config: the shell strips
+      # the double quotes out of an unquoted {"bundle":{...}} argument and Tauri
+      # then gets invalid JSON.
+      - name: Updater artifacts only on a tag build
+        id: updater
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "args=" >> "$GITHUB_OUTPUT"
+          else
+            CFG="${RUNNER_TEMP}/no-updater.json"
+            printf '%s' '{"bundle":{"createUpdaterArtifacts":false}}' > "$CFG"
+            echo "args=--config $CFG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Tauri (Windows x64)
+        working-directory: desktop
+        run: pnpm tauri build --target x86_64-pc-windows-msvc ${{ steps.updater.outputs.args }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # T17: EV code-signing via SSL.com eSigner — gated on org secret presence.
+      # DPI is handled automatically by Tauri 2's Windows manifest (T23 — no custom manifest needed).
+      # secrets context is not allowed in step `if:` — it invalidates the whole
+      # workflow at parse time (0-job startup failure on every push). Gate via an
+      # output check instead.
+      - name: Check EV signing secret presence
+        id: evcheck
+        shell: bash
+        env:
+          SSL_USER: ${{ secrets.SSL_COM_USERNAME }}
+        run: echo "present=$([ -n "$SSL_USER" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Sign Windows MSI (EV, SSL.com eSigner)
+        if: steps.evcheck.outputs.present == 'true' 
+        uses: SSLcom/esigner-codesign@v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.SSL_COM_USERNAME }}
+          password: ${{ secrets.SSL_COM_PASSWORD }}
+          credential_id: ${{ secrets.SSL_COM_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.SSL_COM_TOTP_SECRET }}
+          file_path: desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          override: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows-x64
+          path: |
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi.zip
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi.zip.sig
+          retention-days: 14
+
+      # T18 — publish updater feed to S3 (tag pushes only)
+      - name: Publish updater feed (S3)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.HETZNER_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.HETZNER_S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: eu-central-1
+          AWS_ENDPOINT_URL: https://fsn1.your-objectstorage.com
+        run: |
+          for sig in desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi.zip.sig; do
+            [ -f "$sig" ] || continue
+            aws s3 cp "$sig" s3://packages.nself.org/chat-desktop/ --endpoint-url "$AWS_ENDPOINT_URL"
+            aws s3 cp "${sig%.sig}" s3://packages.nself.org/chat-desktop/ --endpoint-url "$AWS_ENDPOINT_URL"
+          done

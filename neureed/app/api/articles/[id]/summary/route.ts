@@ -1,0 +1,30 @@
+/**
+ * Article Summary API
+ * GET /api/articles/[id]/summary - Get article summary
+ */
+
+import { summarizeArticle } from "@/lib/services/summarization-service";
+import { getCurrentUser } from "@/lib/middleware/auth-middleware";
+import { createHandler } from "@/lib/api-handler";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/articles/[id]/summary
+ * Get article summary
+ */
+export const GET = createHandler(async ({ params }) => {
+  const { id: articleId } = params;
+
+  if (!articleId) {
+    return { error: "Article ID is required", status: 400 };
+  }
+
+  const user = await getCurrentUser();
+  const summary = await summarizeArticle(articleId, {
+    userId: user?.id,
+  });
+
+  return { summary };
+});
+

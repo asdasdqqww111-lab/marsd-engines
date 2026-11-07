@@ -1,0 +1,491 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - '.github/wiki/**'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+# Test Policy Reference: docs/TEST-POLICY.md
+# All tests must comply with:
+# 1. Deterministic seeding - no Math.random() without mocks
+# 2. Wall-clock race prevention - jest.useFakeTimers() required for time-dependent tests
+# 3. External network isolation - all HTTP/GraphQL/WebSocket calls must be mocked in unit tests
+# 4. Database isolation - in-memory or Docker containers for test databases
+# 5. Timeout limits - 5s for unit tests, 30s for integration tests, 60s for E2E tests
+# Failing tests are triaged against policy violations before declaring "flaky"
+
+# Monorepo Structure (v1.0.0+):
+# - backend/ - nSelf CLI backend infrastructure
+# - frontend/ - Multi-platform frontend (web/mobile/desktop)
+#   - frontend/apps/web - Next.js web app
+#   - frontend/packages/* - Shared packages (@nself-chat/*)
+# Migration Status: Complete (web app in frontend/apps/web)
+
+jobs:
+  # Stage 0: Detect changes to determine which CI paths to execute
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      web: ${{ steps.filter.outputs.web }}
+      packages: ${{ steps.filter.outputs.packages }}
+      config: ${{ steps.filter.outputs.config }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check path changes
+        uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.backend/**'
+            frontend:
+              - 'frontend/**'
+            web:
+              - 'frontend/src/**'
+              - 'frontend/public/**'
+            packages:
+              - 'frontend/src/**'
+              - 'frontend/package.json'
+              - 'pnpm-lock.yaml'
+              - 'packages/**'
+              - 'pnpm-workspace.yaml'
+            config:
+              - 'frontend/tsconfig.json'
+              - 'frontend/jest.config.js'
+              - 'frontend/next.config.js'
+              - 'frontend/tailwind.config.ts'
+              - '.github/workflows/**'
+
+  # Stage 1: Linting and formatting (run in parallel)
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.web == 'true' ||
+      needs.detect-changes.outputs.frontend == 'true' ||
+      needs.detect-changes.outputs.backend == 'true' ||
+      needs.detect-changes.outputs.config == 'true'
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
+
+      - name: Run ESLint
+        run: HASURA_ADMIN_SECRET=ci-lint-placeholder-not-a-real-secret pnpm lint
+        # next lint loads next.config.js which has a build gate requiring this env var.
+        # The value here is a non-functional CI placeholder — no real Hasura instance
+        # is used during linting.
+
+      - name: Check formatting
+        run: pnpm format:check
+        # ACCEPTED: formatting check is a soft gate — reported via CI summary; enforced via pre-commit hook.
+        # Expiry: 2026-12-01 — remove once all formatting issues are resolved and this is a hard gate.
+        continue-on-error: true
+
+      # S09.T04 — Dummy buffer lint gate.
+      # Fails if any production E2EE or GraphQL source contains a bare `new Uint8Array(N) //`
+      # pattern without an immediate .fill() or assignment (zero-buffer sentinel).
+      # Test files are excluded from this check.
+      - name: Lint — no bare zero-buffer sentinels in E2EE/graphql production paths (S09.T04)
+        run: |
+          set +e
+          HITS=$(grep -rn \
+            --include="*.ts" --include="*.tsx" \
+            --exclude-dir=node_modules \
+            --exclude-dir=__tests__ \
+            --exclude="*.test.ts" --exclude="*.test.tsx" --exclude="*.spec.ts" \
+            'new Uint8Array([0-9]\+) //' \
+            src/lib/e2ee/ src/lib/graphql/ 2>/dev/null)
+          set -e
+          if [ -n "$HITS" ]; then
+            echo "BUILD GATE FIRED: bare zero-buffer sentinel(s) found in production E2EE/graphql paths:"
+            echo "$HITS"
+            echo "Use .fill(), crypto.getRandomValues(), or a meaningful initial value instead of a bare zero buffer with a comment."
+            exit 1
+          fi
+          echo "Zero-buffer sentinel check: PASS"
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.web == 'true' ||
+      needs.detect-changes.outputs.frontend == 'true' ||
+      needs.detect-changes.outputs.packages == 'true' ||
+      needs.detect-changes.outputs.config == 'true'
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run TypeScript check
+        run: pnpm type-check
+
+      # The Capacitor mobile shell is its own workspace package with its own
+      # tsconfig; the frontend check above does not cover it (D-0534).
+      - name: Type-check mobile app
+        working-directory: frontend/platforms/mobile
+        run: pnpm type-check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.web == 'true' ||
+      needs.detect-changes.outputs.frontend == 'true' ||
+      needs.detect-changes.outputs.packages == 'true' ||
+      needs.detect-changes.outputs.config == 'true'
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: |
+          NODE_OPTIONS='--max-old-space-size=4096' npx jest --no-coverage --forceExit --maxWorkers=2
+        env:
+          CI: true
+          NEXT_PUBLIC_USE_DEV_AUTH: 'true'
+          NEXT_PUBLIC_ENV: 'test'
+
+  hygiene:
+    name: Production Hygiene
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.web == 'true' ||
+      needs.detect-changes.outputs.frontend == 'true' ||
+      needs.detect-changes.outputs.backend == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check production code hygiene
+        run: bash frontend/scripts/check-production-hygiene.sh
+        # ACCEPTED: hygiene script covers incremental adoption; violations surfaced but not yet blocking.
+        # Expiry: 2026-12-01 — remove once hygiene script exits 0 on the full repo.
+        continue-on-error: true
+
+  # Stage 2: Security scanning (blocking gate)
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [detect-changes, lint, type-check]
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.detect-changes.outputs.web == 'true' ||
+       needs.detect-changes.outputs.frontend == 'true' ||
+       needs.detect-changes.outputs.packages == 'true')
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run dependency audit
+        run: pnpm audit --audit-level=high
+        # ACCEPTED: audit advisories tracked via security-scan workflow; this step collects for summary.
+        # Expiry: 2026-09-01 — promote to hard gate once all high advisories are resolved.
+        continue-on-error: true
+
+      - name: Run security check script
+        working-directory: .
+        run: bash frontend/scripts/security-check.sh
+        # ACCEPTED: security-check.sh covers incremental adoption; blocking happens in security-scan.yml.
+        # Expiry: 2026-12-01 — remove once security-check.sh exits 0 on full repo.
+        continue-on-error: true
+        env:
+          NODE_ENV: production
+
+  # Stage 3: Build (after all quality gates pass)
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [detect-changes, lint, type-check, test, hygiene, security]
+    if: |
+      always() &&
+      !cancelled() &&
+      needs.lint.result == 'success' &&
+      needs.type-check.result == 'success' &&
+      needs.test.result == 'success' &&
+      (needs.hygiene.result == 'success' || needs.hygiene.result == 'skipped') &&
+      (needs.security.result == 'success' || needs.security.result == 'skipped')
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate production environment
+        run: pnpm validate:env:prod
+        # ACCEPTED: env vars are not present on GH runners (injected by nSelf at deploy time).
+        # Expiry: permanent — env validation is informational in CI, enforced by nself deploy gate.
+        continue-on-error: true
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        env:
+          NODE_ENV: 'production'
+          NEXT_PUBLIC_ENV: 'production'
+
+      - name: Build
+        run: HASURA_ADMIN_SECRET=ci-build-placeholder-not-a-real-secret NEXT_PUBLIC_USE_DEV_AUTH=false pnpm build
+        # Build gate in next.config.js requires HASURA_ADMIN_SECRET for production builds.
+        # CI uses a non-functional placeholder — the app never connects to a real Hasura
+        # instance during the build gate check.
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        if: success()
+        with:
+          name: build-output
+          path: frontend/.next
+          retention-days: 7
+          if-no-files-found: warn
+
+  # Stage 4: E2E tests (after successful build)
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    # ACCEPTED: E2E tests are canary — not yet stable enough to block merges.
+    # Expiry: 2026-12-01 — remove once E2E suite has <5% flakiness across 10 consecutive runs.
+    continue-on-error: true
+    # Run E2E tests on main branch or when explicitly requested
+    if: github.ref == 'refs/heads/main' || contains(github.event.head_commit.message, '[run-e2e]')
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Download build artifacts
+        id: download-artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: build-output
+          path: frontend/.next
+        # ACCEPTED: artifact may not exist (e.g. first run, parallel job failure); step below rebuilds if missing.
+        # Expiry: permanent — fallback pattern is intentional.
+        continue-on-error: true
+
+      - name: Build if artifact unavailable
+        if: steps.download-artifact.outcome == 'failure'
+        run: HASURA_ADMIN_SECRET=ci-build-placeholder-not-a-real-secret NEXT_PUBLIC_USE_DEV_AUTH=true pnpm build
+        env:
+          NEXT_PUBLIC_ENV: 'test'
+          NEXT_PUBLIC_GRAPHQL_URL: 'http://localhost:8080/v1/graphql'
+          NEXT_PUBLIC_AUTH_URL: 'http://localhost:4000'
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          NEXT_PUBLIC_USE_DEV_AUTH: 'true'
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30
+
+  # ─── Android debug build (Capacitor) ────────────────────────────
+  # Debug build only — no signing secrets required.
+  # Release / Play Store signing is handled by deploy-mobile-android.yml.
+  android-build:
+    name: Android · debug APK (Capacitor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      # packages: '' — do NOT let the action install its default package set.
+      # That set includes the obsolete `tools` package, which cmdline-tools 20.0
+      # (rolled into the runner image today) no longer serves:
+      #   Warning: Failed to find package 'tools'
+      #   Error: The process '.../cmdline-tools/20.0/bin/sdkmanager'
+      #          failed with exit code 1
+      # This job passed at 17:59 today and failed at 20:41 with no change to it,
+      # and it dies inside the action before any step of ours runs. The runner
+      # image already ships platform-tools and build-tools, which is all
+      # `gradlew assembleDebug` needs here.
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web assets
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_USE_DEV_AUTH: 'true'
+          NEXT_PUBLIC_ENV: 'test'
+          NEXT_PUBLIC_GRAPHQL_URL: 'http://localhost:8080/v1/graphql'
+          NEXT_PUBLIC_AUTH_URL: 'http://localhost:4000'
+          HASURA_ADMIN_SECRET: 'ci-build-placeholder-not-a-real-secret'
+
+      # frontend/platforms/mobile is now a workspace member (see
+      # pnpm-workspace.yaml), so "Install dependencies" above already
+      # installed its @capacitor/* deps — no separate CLI install/npx
+      # fetch needed here.
+      #
+      # capacitor.config.json's webDir ("dist") is relative to this mobile
+      # package, not the Next.js app built above — it is its own Vite SPA
+      # shell. `cap add`/`cap sync` silently no-op ("sync could not run--
+      # missing dist directory") without it, which then skips the plugin +
+      # gradle settings sync (capacitor.settings.gradle never gets written,
+      # failing the later gradle build). `vite build` directly, not
+      # `pnpm build` (= `tsc && vite build`): the Type Check job already runs
+      # this package's tsc.
+      - name: Build mobile web assets (Vite)
+        working-directory: frontend/platforms/mobile
+        run: npx vite build
+
+      # `cap add android`, not `cap sync android`: the native android/
+      # project is gitignored (never committed) and does not exist on a
+      # fresh checkout, so there is nothing for `sync` to sync into yet.
+      # `add` generates the platform from the @capacitor/android template
+      # and performs the initial sync in one step.
+      - name: Add Capacitor Android platform
+        working-directory: frontend/platforms/mobile
+        run: npx cap add android
+
+      # setup-java's gradle cache keys off gradle-wrapper.properties / build.gradle
+      # files, which do not exist until Capacitor generates the native android/
+      # project above (it is gitignored, not committed) — so this step must run
+      # after "Sync Capacitor Android", not before.
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+          cache-dependency-path: frontend/platforms/mobile/android/**/*.gradle*
+
+      - name: Build debug APK
+        working-directory: frontend/platforms/mobile/android
+        run: ./gradlew assembleDebug --no-daemon

@@ -1,0 +1,36 @@
+/**
+ * Topics API
+ * GET /api/articles/topics - Get all topics (topic cloud)
+ * GET /api/articles/topics?topic=xyz - Get articles by topic
+ */
+
+import {
+  getAllTopics,
+  getArticlesByTopic,
+} from "@/lib/services/summarization-service";
+import { createHandler } from "@/lib/api-handler";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/articles/topics
+ * Get topics or articles by topic
+ */
+export const GET = createHandler(async ({ request }) => {
+  const { searchParams } = new URL(request.url);
+  const topic = searchParams.get("topic");
+  const limit = parseInt(searchParams.get("limit") || "50");
+  const sortBy = searchParams.get("sortBy") || "publishedAt";
+  const sortDirection = searchParams.get("sortDirection") || "desc";
+
+  if (topic) {
+    // Get articles by topic
+    const articles = await getArticlesByTopic(topic, limit, sortBy as any, sortDirection as any);
+    return { topic, articles };
+  } else {
+    // Get all topics
+    const topics = await getAllTopics(limit);
+    return { topics };
+  }
+});
+

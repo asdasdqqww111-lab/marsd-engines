@@ -1,0 +1,138 @@
+name: Lighthouse CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/src/**'
+      - 'frontend/public/**'
+      - 'frontend/next.config.js'
+      - 'frontend/.lighthouserc.*'
+      - 'frontend/package.json'
+      - '.github/workflows/lighthouse-ci.yml'
+  pull_request:
+    paths:
+      - 'frontend/src/**'
+      - 'frontend/public/**'
+      - 'frontend/next.config.js'
+      - 'frontend/.lighthouserc.*'
+      - 'frontend/package.json'
+      - '.github/workflows/lighthouse-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lighthouse:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build production
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_USE_DEV_AUTH: 'true'
+          NEXT_PUBLIC_ENV: 'production'
+          NODE_ENV: 'production'
+          # Build gate in next.config.js requires HASURA_ADMIN_SECRET for production builds.
+          # In CI, the secret is not needed for actual DB access — only to pass the gate check.
+          HASURA_ADMIN_SECRET: ${{ secrets.HASURA_ADMIN_SECRET || 'ci-placeholder-not-a-real-secret' }}
+
+      - name: Start production server
+        # next start loads next.config.js which has a build gate requiring HASURA_ADMIN_SECRET.
+        # CI uses a non-functional placeholder — the app never connects to a real Hasura instance.
+        run: pnpm start &
+        env:
+          NEXT_PUBLIC_USE_DEV_AUTH: 'true'
+          NEXT_PUBLIC_ENV: 'production'
+          NODE_ENV: 'production'
+          HASURA_ADMIN_SECRET: ${{ secrets.HASURA_ADMIN_SECRET || 'ci-placeholder-not-a-real-secret' }}
+
+      - name: Wait for server
+        # 180 s timeout — slow CI runners (ubuntu-latest) can take 2+ minutes to start
+        # Next.js production builds. 60 s was consistently timing out.
+        run: npx wait-on http://localhost:3000 --timeout 180000
+
+      - name: Run Lighthouse CI
+        run: pnpm lighthouse
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+          NEXT_PUBLIC_USE_DEV_AUTH: 'true'
+          NEXT_PUBLIC_ENV: 'production'
+          NODE_ENV: 'production'
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: lighthouse-results
+          path: |
+            frontend/.lighthouseci
+            frontend/lighthouseci-*.html
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Find manifest file
+            const manifestPath = 'frontend/.lighthouseci/manifest.json';
+            if (!fs.existsSync(manifestPath)) {
+              console.log('No manifest file found');
+              return;
+            }
+
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+            const results = manifest[0];
+
+            const comment = `## 🔦 Lighthouse CI Results
+
+            ### Performance Scores
+
+            | URL | Performance | Accessibility | Best Practices | SEO |
+            |-----|-------------|---------------|----------------|-----|
+            ${results.summary ? Object.entries(results.summary).map(([url, scores]) =>
+              `| ${url} | ${Math.round(scores.performance * 100)} | ${Math.round(scores.accessibility * 100)} | ${Math.round(scores['best-practices'] * 100)} | ${Math.round(scores.seo * 100)} |`
+            ).join('\n') : 'No results available'}
+
+            ### Core Web Vitals
+
+            - **First Contentful Paint (FCP)**: Target < 1.5s
+            - **Largest Contentful Paint (LCP)**: Target < 2.5s
+            - **Cumulative Layout Shift (CLS)**: Target < 0.1
+            - **Total Blocking Time (TBT)**: Target < 300ms
+
+            [View full Lighthouse report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

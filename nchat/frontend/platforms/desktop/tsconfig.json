@@ -1,0 +1,33 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "paths": {
+      "@/*": ["../../src/*"],
+      "@/lib/*": ["../../src/lib/*"],
+      "@/components/*": ["../../src/components/*"],
+      "@/hooks/*": ["../../src/hooks/*"],
+      "@/config/*": ["../../src/config/*"],
+      "@/stores/*": ["../../src/stores/*"],
+      "@/test-utils/*": ["../../src/test-utils/*"],
+      "@nself-chat/core": ["../../../packages/core/src/index.ts"],
+      "@nself-chat/api": ["../../../packages/api/src/index.ts"],
+      "@nself-chat/state": ["../../../packages/state/src/index.ts"],
+      "@nself-chat/ui": ["../../../packages/ui/src/index.ts"],
+      "@nself-chat/config": ["../../../packages/config/src/index.ts"],
+      "@nself-chat/testing": ["../../../packages/testing/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "release"]
+}

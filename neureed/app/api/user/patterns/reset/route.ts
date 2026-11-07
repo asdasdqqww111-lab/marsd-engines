@@ -1,0 +1,18 @@
+import { resetUserPatterns } from "@/lib/services/pattern-detection-service";
+import { createHandler } from "@/lib/api-handler";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * POST /api/user/patterns/reset
+ * Reset all learned patterns for the user
+ */
+export const POST = createHandler(
+  async ({ session }) => {
+    await resetUserPatterns(session!.user!.id);
+
+    return { message: "Patterns reset successfully" };
+  },
+  { requireAuth: true }
+);
+

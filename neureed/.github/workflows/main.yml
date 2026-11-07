@@ -1,0 +1,135 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          # Try npm ci first (faster), fallback to npm install if it fails
+          echo "📦 Attempting npm ci..."
+          if npm ci --no-audit --no-fund 2>&1 | tee npm-ci.log; then
+            echo "✅ Dependencies installed with npm ci"
+            exit 0
+          fi
+          
+          echo "⚠️ npm ci failed, trying npm install as fallback..."
+          npm cache clean --force
+          
+          if npm install --no-audit --no-fund; then
+            echo "✅ Dependencies installed with npm install"
+            exit 0
+          fi
+          
+          echo "❌ Both npm ci and npm install failed"
+          echo "Last npm ci log:"
+          cat npm-ci.log || true
+          exit 1
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          PUPPETEER_SKIP_DOWNLOAD: 1
+
+      - name: Generate Prisma Client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Type check
+        run: npm exec tsc -- --noEmit
+
+      - name: Build Next.js
+        run: npm run build
+        env:
+          SKIP_ENV_VALIDATION: "1"
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+
+      - name: Set up Docker Buildx
+        if: github.event_name != 'pull_request'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        if: github.event_name != 'pull_request'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+
+      - name: Build and Push Docker
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: SKIP_ENV_VALIDATION=1
+          provenance: false
+
+      - name: Deploy to Dokploy
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_APP_ID: ${{ secrets.DOKPLOY_APP_ID }}
+        run: |
+          if [ -n "$DOKPLOY_API_KEY" ]; then
+            curl -X POST 'https://dokploy.madpin.dev/api/trpc/application.deploy' \
+              -H "x-api-key: $DOKPLOY_API_KEY" \
+              -H 'Content-Type: application/json' \
+              -d "{\"json\":{\"applicationId\":\"$DOKPLOY_APP_ID\"}}"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "- **Docker**: ✅ Built and pushed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Docker**: ⏭️ Skipped (PR)" >> $GITHUB_STEP_SUMMARY
+          fi
+

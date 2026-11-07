@@ -1,0 +1,464 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["driverAdapters", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model admin_settings {
+  id          String   @id
+  key         String   @unique
+  value       Json
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}
+
+model article_feedback {
+  id            String   @id
+  userId        String
+  articleId     String
+  feedbackType  String
+  feedbackValue Float
+  timeSpent     Int?
+  estimatedTime Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  articles      articles @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  users         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([articleId])
+  @@index([feedbackType])
+  @@index([userId, createdAt])
+  @@index([userId])
+}
+
+model articles {
+  id                   String                 @id
+  feedId               String
+  title                String
+  content              String
+  url                  String                 @unique
+  publishedAt          DateTime?              @db.Timestamptz(6)
+  embedding            Unsupported("vector")?
+  createdAt            DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime               @updatedAt @db.Timestamptz(6)
+  author               String?
+  contentHash          String?
+  excerpt              String?
+  guid                 String?
+  imageUrl             String?
+  keyPoints            Json?
+  summary              String?
+  topics               String[]
+  article_feedback     article_feedback[]
+  feeds                feeds                  @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  read_articles        read_articles[]
+  saved_search_matches saved_search_matches[]
+
+  @@index([contentHash])
+  @@index([feedId])
+  @@index([feedId, publishedAt])
+  @@index([guid])
+  @@index([publishedAt])
+  @@index([url])
+}
+
+model categories {
+  id              String            @id
+  name            String            @unique
+  description     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  feed_categories feed_categories[]
+}
+
+model CronJobRun {
+  id           String         @id @default(cuid())
+  jobName      String
+  status       CronJobStatus
+  startedAt    DateTime       @default(now())
+  completedAt  DateTime?
+  durationMs   Int?
+  stats        Json?
+  errorMessage String?
+  logs         Json?
+  triggeredBy  CronJobTrigger
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([jobName, startedAt])
+  @@index([jobName, status])
+  @@map("cron_job_runs")
+}
+
+model JobLock {
+  jobName   String   @id
+  lockedAt  DateTime
+  lockedBy  String
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("job_locks")
+}
+
+model feed_categories {
+  feedId     String
+  categoryId String
+  createdAt  DateTime   @default(now())
+  categories categories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  feeds      feeds      @relation(fields: [feedId], references: [id], onDelete: Cascade)
+
+  @@id([feedId, categoryId])
+}
+
+model feeds {
+  id                   String            @id
+  name                 String
+  url                  String            @unique
+  lastFetched          DateTime?
+  settings             Json?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  description          String?
+  errorCount           Int               @default(0)
+  etag                 String?
+  fetchInterval        Int               @default(60)
+  imageUrl             String?
+  lastError            String?
+  lastModified         String?
+  siteUrl              String?
+  healthStatus         String?           @default("healthy")
+  consecutiveFailures  Int?              @default(0)
+  lastSuccessfulFetch  DateTime?         @db.Timestamp(6)
+  autoDisableThreshold Int?              @default(10)
+  notifyOnError        Boolean?          @default(false)
+  httpStatus           Int?
+  redirectUrl          String?
+  articles             articles[]
+  feed_categories      feed_categories[]
+  feed_error_log       feed_error_log[]
+  user_feeds           user_feeds[]
+
+  @@index([errorCount])
+  @@index([lastFetched])
+  @@index([url])
+  @@index([healthStatus])
+}
+
+model feed_error_log {
+  id           String   @id
+  feedId       String
+  timestamp    DateTime @default(now()) @db.Timestamp(6)
+  errorType    String
+  errorMessage String
+  httpStatus   Int?
+  details      Json?
+  resolved     Boolean? @default(false)
+  feed         feeds    @relation(fields: [feedId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([feedId])
+  @@index([timestamp(sort: Desc)])
+  @@index([resolved])
+}
+
+model read_articles {
+  id        String   @id
+  userId    String
+  articleId String
+  readAt    DateTime @default(now())
+  articles  articles @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([articleId])
+  @@index([userId])
+  @@index([userId, readAt])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model user_categories {
+  id                   String                 @id
+  userId               String
+  name                 String
+  description          String?
+  order                Int                    @default(0)
+  settings             Json?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  icon                 String?                @default("📁")
+  parentId             String?
+  color                String?
+  collapsed            Boolean?               @default(false)
+  sortOrder            String?                @default("manual")
+  includeInSearch      Boolean?               @default(true)
+  isDefault            Boolean?               @default(false)
+  isReadOnly           Boolean?               @default(false)
+  saved_searches       saved_searches[]
+  parent               user_categories?       @relation("CategoryHierarchy", fields: [parentId], references: [id], onUpdate: NoAction)
+  children             user_categories[]      @relation("CategoryHierarchy")
+  users                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user_feed_categories user_feed_categories[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([userId, order])
+}
+
+model user_feed_categories {
+  id              String          @id
+  userFeedId      String
+  userCategoryId  String
+  createdAt       DateTime        @default(now())
+  user_categories user_categories @relation(fields: [userCategoryId], references: [id], onDelete: Cascade)
+  user_feeds      user_feeds      @relation(fields: [userFeedId], references: [id], onDelete: Cascade)
+
+  @@unique([userFeedId, userCategoryId])
+  @@index([userCategoryId])
+  @@index([userFeedId])
+}
+
+model user_feeds {
+  id                   String                 @id
+  userId               String
+  feedId               String
+  customName           String?
+  settings             Json?
+  subscribedAt         DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  tags                 String[]
+  user_feed_categories user_feed_categories[]
+  feeds                feeds                  @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  users                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feedId])
+  @@index([feedId])
+  @@index([userId])
+  @@index([tags], type: Gin)
+}
+
+model user_patterns {
+  id            String   @id
+  userId        String
+  keyword       String
+  weight        Float
+  feedbackCount Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  users         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keyword])
+  @@index([updatedAt])
+  @@index([userId])
+  @@index([userId, weight])
+}
+
+model user_preferences {
+  id                        String   @id
+  userId                    String   @unique
+  theme                     String   @default("system")
+  fontSize                  String   @default("medium")
+  articlesPerPage           Int      @default(20)
+  defaultView               String   @default("expanded")
+  showReadArticles          Boolean  @default(true)
+  autoMarkAsRead            Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  showRelatedExcerpts       Boolean  @default(false)
+  bounceThreshold           Float    @default(0.25)
+  showLowRelevanceArticles  Boolean  @default(true)
+  llmApiKey                 String?
+  llmBaseUrl                String?
+  llmProvider               String?
+  readingPanelEnabled       Boolean  @default(true)
+  readingPanelPosition      String   @default("right")
+  readingPanelSize          Int      @default(50)
+  categoryStates            Json?
+  sidebarCollapsed          Boolean  @default(false)
+  readingFontFamily         String   @default("Georgia")
+  readingFontSize           Int      @default(18)
+  readingLineHeight         Float    @default(1.7)
+  readingParagraphSpacing   Float    @default(1.5)
+  showReadingTime           Boolean  @default(true)
+  breakLineSpacing          Float    @default(0.75)
+  defaultMaxArticleAge      Int      @default(90)
+  defaultMaxArticlesPerFeed Int      @default(500)
+  defaultRefreshInterval    Int      @default(60)
+  articleSortDirection      String   @default("desc")
+  articleSortOrder          String   @default("publishedAt")
+  infiniteScrollMode        String   @default("both")
+  searchRecencyDecayDays    Int      @default(30)
+  searchRecencyWeight       Float    @default(0.3)
+  embeddingsEnabled         Boolean  @default(false)
+  llmSummaryModel           String?
+  llmEmbeddingModel         String?
+  llmDigestModel            String?
+  showArticleImage          Boolean  @default(true)
+  showArticleExcerpt        Boolean  @default(true)
+  showArticleAuthor         Boolean  @default(true)
+  showArticleFeedInfo       Boolean  @default(true)
+  showArticleDate           Boolean  @default(true)
+  articleCardSectionOrder   Json?    @default("[\"feedInfo\", \"title\", \"excerpt\", \"actions\"]")
+  articleCardDensity        String   @default("normal")
+  articleCardBorderWidth    String   @default("normal")
+  articleCardBorderRadius   String   @default("normal")
+  articleCardBorderContrast String   @default("medium")
+  articleCardSpacing        String   @default("normal")
+  sidebarWidth              Int      @default(20)
+  cardFontSize              String   @default("same")
+  modalFontSize             String   @default("same")
+  sidebarFontSize           String   @default("smaller")
+  uiFontSize                String   @default("same")
+  inlineAutoScroll          Boolean  @default(true)
+  readingMode               String   @default("side_panel")
+  users                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model user_notifications {
+  id        String   @id
+  userId    String
+  type      String
+  title     String
+  message   String
+  metadata  Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, read])
+}
+
+model saved_searches {
+  id              String                 @id @default(cuid())
+  userId          String
+  name            String
+  query           String
+  icon            String?                @default("🔍")
+  threshold       Float                  @default(0.6)
+  categoryId      String?
+  notifyOnMatch   Boolean                @default(false)
+  notifyThreshold Float                  @default(0.85)
+  dailyDigest     Boolean                @default(false)
+  recencyBias     Float                  @default(0.0)
+  prioritySources Json?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  lastMatchedAt   DateTime?
+  totalMatches    Int                    @default(0)
+  archived        Boolean                @default(false)
+  matches         saved_search_matches[]
+  category        user_categories?       @relation(fields: [categoryId], references: [id])
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, archived])
+}
+
+model saved_search_matches {
+  id             String         @id @default(cuid())
+  savedSearchId  String
+  articleId      String
+  relevanceScore Float
+  matchedTerms   Json
+  matchReason    String?
+  createdAt      DateTime       @default(now())
+  notified       Boolean        @default(false)
+  article        articles       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  savedSearch    saved_searches @relation(fields: [savedSearchId], references: [id], onDelete: Cascade)
+
+  @@unique([savedSearchId, articleId])
+  @@index([savedSearchId, relevanceScore])
+  @@index([articleId])
+  @@index([createdAt])
+}
+
+model User {
+  id                 String               @id @default(cuid())
+  name               String?
+  email              String               @unique
+  emailVerified      DateTime?
+  image              String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  role               UserRole             @default(USER)
+  accounts           Account[]
+  article_feedback   article_feedback[]
+  read_articles      read_articles[]
+  saved_searches     saved_searches[]
+  sessions           Session[]
+  user_categories    user_categories[]
+  user_feeds         user_feeds[]
+  user_notifications user_notifications[]
+  user_patterns      user_patterns[]
+  user_preferences   user_preferences?
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum CronJobStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum CronJobTrigger {
+  SCHEDULER
+  MANUAL
+  SYSTEM
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  GUEST
+}

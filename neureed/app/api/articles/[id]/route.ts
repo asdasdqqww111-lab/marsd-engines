@@ -1,0 +1,48 @@
+import { getArticle, deleteArticle } from "@/lib/services/article-service";
+import { createHandler } from "@/lib/api-handler";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/articles/:id
+ * Get a single article with feed information
+ */
+export const GET = createHandler(async ({ params }) => {
+  const { id } = params;
+
+  if (!id) {
+    return { error: "Article ID is required", status: 400 };
+  }
+
+  const article = await getArticle(id);
+
+  if (!article) {
+    throw new Error("Article not found");
+  }
+
+  return { article };
+});
+
+/**
+ * DELETE /api/articles/:id
+ * Delete an article
+ */
+export const DELETE = createHandler(async ({ params }) => {
+  const { id } = params;
+
+  if (!id) {
+    return { error: "Article ID is required", status: 400 };
+  }
+
+  // Check if article exists
+  const article = await getArticle(id);
+  if (!article) {
+    throw new Error("Article not found");
+  }
+
+  // Delete article
+  await deleteArticle(id);
+
+  return { success: true };
+});
+

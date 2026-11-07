@@ -1,0 +1,32 @@
+# lefthook.yml — nself/nchat (pnpm monorepo: frontend + desktop + packages/*)
+# Install: brew install lefthook && lefthook install (at repo root)
+
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "**/*.{ts,tsx,js,jsx}"
+      run: pnpm lint
+    secrets-scan:
+      run: |
+        if [ -f .gitleaks.toml ]; then
+          gitleaks protect --staged --config .gitleaks.toml
+        else
+          gitleaks protect --staged
+        fi
+
+pre-push:
+  parallel: false
+  commands:
+    type-check:
+      run: pnpm type-check
+    test:
+      run: pnpm test --passWithNoTests
+    build:
+      run: pnpm build
+    ci-suppression-guard:
+      run: bash ../.github/ci-suppression-guard.sh
+    ci-line-count-gate:
+      run: bash ../.github/ci-line-count-gate.sh
+    ci-stub-gate:
+      run: bash ../.github/ci-stub-gate.sh

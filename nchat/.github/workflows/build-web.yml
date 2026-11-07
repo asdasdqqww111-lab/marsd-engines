@@ -1,0 +1,125 @@
+name: Build Web
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Build environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+  workflow_call:
+    inputs:
+      environment:
+        required: false
+        type: string
+        default: 'production'
+    outputs:
+      artifact-name:
+        description: 'Name of the uploaded artifact'
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  build:
+    name: Build Web Application
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    outputs:
+      artifact-name: ${{ steps.artifact.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Get version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_USE_DEV_AUTH: ${{ inputs.environment == 'development' && 'true' || 'false' }}
+          NODE_ENV: ${{ inputs.environment == 'development' && 'development' || 'production' }}
+
+      - name: Set artifact name
+        id: artifact
+        run: |
+          NAME="web-build-${{ steps.version.outputs.version }}-${{ inputs.environment || 'production' }}"
+          echo "name=${NAME}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: |
+            frontend/.next
+            frontend/public
+            frontend/package.json
+            pnpm-lock.yaml
+            frontend/next.config.js
+          retention-days: 14
+
+  analyze:
+    name: Analyze Bundle
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    needs: [build]
+    if: inputs.environment == 'production' || inputs.environment == ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Analyze bundle
+        run: pnpm build:analyze
+        env:
+          ANALYZE: 'true'
+          NEXT_PUBLIC_USE_DEV_AUTH: 'false'
+        # ACCEPTED: bundle analysis is informational; build:analyze may not be configured on all environments.
+        # Expiry: 2026-12-01 — remove once bundle analysis is stable and consistently configured.
+        continue-on-error: true
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-analysis
+          path: frontend/.next/analyze/
+          retention-days: 7
+        # ACCEPTED: analysis artifact may not exist if build:analyze step above was skipped or failed.
+        # Expiry: permanent — artifact upload is best-effort when source step may not produce output.
+        continue-on-error: true

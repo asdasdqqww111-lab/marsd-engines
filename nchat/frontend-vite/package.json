@@ -1,0 +1,47 @@
+{
+  "name": "@nchat/frontend-vite",
+  "version": "1.1.1",
+  "description": "ɳChat Vite SPA \u2014 React Router shell migrated from Next.js frontend/",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:routes": "node scripts/generate-routes.mjs",
+    "predev": "pnpm generate:routes",
+    "dev": "vite --port 3000",
+    "prebuild": "pnpm generate:routes",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 3000",
+    "start": "vite preview --port 3000",
+    "pretype-check": "pnpm generate:routes",
+    "type-check": "tsc --noEmit",
+    "pretest": "pnpm generate:routes",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nself/auth-core": "link:../../packages/@nself/auth-core",
+    "@nself/errors": "link:../../packages/@nself/errors",
+    "@nself/graphql-client": "link:../../packages/@nself/graphql-client",
+    "@nself/i18n": "link:../../packages/@nself/i18n",
+    "@nself/ui": "link:../../packages/@nself/ui",
+    "@tanstack/react-query": "^5.51.1",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "react-router-dom": "^7.1.0",
+    "urql": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.5.10",
+    "typescript": "~5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.11"
+  }
+}

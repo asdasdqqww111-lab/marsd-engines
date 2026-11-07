@@ -1,0 +1,43 @@
+/**
+ * Related Articles API
+ * GET /api/articles/:id/related
+ */
+
+import { logger } from "@/lib/logger";
+import { findRelatedArticles } from "@/lib/services/semantic-search-service";
+import { createHandler } from "@/lib/api-handler";
+import { apiResponse } from "@/lib/api-response";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET - Find related articles
+ */
+export const GET = createHandler(async ({ params, request }) => {
+  const { id } = params;
+
+  if (!id) {
+    return { error: "Article ID is required", status: 400 };
+  }
+
+  const { searchParams } = new URL(request.url);
+
+  const limit = parseInt(searchParams.get("limit") || "10");
+  const minScore = parseFloat(searchParams.get("minScore") || "0.7");
+  const excludeSameFeed = searchParams.get("excludeSameFeed") === "true";
+
+  logger.info("Finding related articles", { articleId: id, limit, minScore });
+
+  const results = await findRelatedArticles(id, {
+    limit,
+    minScore,
+    excludeSameFeed,
+  });
+
+  return {
+    articleId: id,
+    results,
+    count: results.length,
+  };
+});
+

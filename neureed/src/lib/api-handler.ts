@@ -1,0 +1,250 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { apiResponse, apiError } from "@/lib/api-response";
+import { requireAdmin, requireUserOrAbove } from "@/lib/middleware/auth-middleware";
+import type { Session } from "next-auth";
+
+/**
+ * Context passed to API handlers
+ */
+export interface HandlerContext<TBody = unknown, TQuery = unknown> {
+  body: TBody;
+  query: TQuery;
+  session: Session | null;
+  params: Record<string, string>;
+  request: NextRequest;
+}
+
+/**
+ * Handler function type
+ */
+type Handler<TBody = unknown, TQuery = unknown, TResult = unknown> = (
+  ctx: HandlerContext<TBody, TQuery>
+) => Promise<TResult>;
+
+/**
+ * Options for createHandler
+ */
+export interface HandlerOptions<TBody = unknown, TQuery = unknown> {
+  /**
+   * Zod schema for validating request body (POST/PUT/PATCH)
+   */
+  bodySchema?: z.ZodSchema<TBody>;
+  
+  /**
+   * Zod schema for validating query parameters (GET)
+   */
+  querySchema?: z.ZodSchema<TQuery>;
+  
+  /**
+   * Whether authentication is required
+   */
+  requireAuth?: boolean;
+  
+  /**
+   * Whether admin role is required
+   */
+  requireAdmin?: boolean;
+  
+  /**
+   * Whether at least USER role is required (not GUEST)
+   */
+  requireUserOrAbove?: boolean;
+}
+
+/**
+ * Parse and validate query parameters from URL
+ */
+function parseQueryParams<T>(
+  request: NextRequest,
+  schema?: z.ZodSchema<T>
+): T | Record<string, string | null> {
+  const { searchParams } = new URL(request.url);
+  const queryObj: Record<string, string | null> = {};
+  
+  searchParams.forEach((value, key) => {
+    queryObj[key] = value;
+  });
+
+  if (schema) {
+    return schema.parse(queryObj);
+  }
+
+  return queryObj as T;
+}
+
+/**
+ * Create a unified API route handler
+ * 
+ * This wrapper handles:
+ * - Authentication (optional or required)
+ * - Body validation (for POST/PUT/PATCH)
+ * - Query parameter validation (for GET)
+ * - URL params extraction
+ * - Centralized error handling
+ * - Consistent response format
+ * 
+ * @example
+ * ```typescript
+ * export const POST = createHandler(
+ *   async ({ body, session }) => {
+ *     return await createFeed(body, session.user.id);
+ *   },
+ *   { bodySchema: createFeedSchema, requireAuth: true }
+ * );
+ * ```
+ */
+export function createHandler<TBody = unknown, TQuery = unknown, TResult = unknown>(
+  handler: Handler<TBody, TQuery, TResult>,
+  options: HandlerOptions<TBody, TQuery> = {}
+) {
+  return async (
+    request: NextRequest,
+    context: { params: Promise<Record<string, string | string[] | undefined>> }
+  ): Promise<NextResponse> => {
+    try {
+      // Get session
+      const session = await auth();
+
+      // Check authentication
+      if (options.requireAuth && !session?.user) {
+        return apiError("Unauthorized. Please sign in.", 401);
+      }
+      
+      // Check admin authorization
+      if (options.requireAdmin) {
+        try {
+          await requireAdmin();
+        } catch (error) {
+          if (error instanceof Error) {
+            if (error.message === "Unauthorized") {
+              return apiError("Unauthorized. Please sign in.", 401);
+            }
+            if (error.message.startsWith("Forbidden")) {
+              return apiError("Forbidden. Admin access required.", 403);
+            }
+          }
+          throw error;
+        }
+      }
+      
+      // Check user or above authorization
+      if (options.requireUserOrAbove) {
+        try {
+          await requireUserOrAbove();
+        } catch (error) {
+          if (error instanceof Error) {
+            if (error.message === "Unauthorized") {
+              return apiError("Unauthorized. Please sign in.", 401);
+            }
+            if (error.message.startsWith("Forbidden")) {
+              return apiError("Forbidden. User access required.", 403);
+            }
+          }
+          throw error;
+        }
+      }
+
+      // Parse URL params (always a Promise in Next.js 16)
+      const rawParams = await context.params;
+      // Convert params to Record<string, string> (taking first value for arrays)
+      // Handle null/undefined params for routes without URL parameters
+      const params = Object.entries(rawParams || {}).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          const stringValue = Array.isArray(value) ? value[0] : value;
+          if (stringValue !== undefined) {
+            acc[key] = stringValue;
+          }
+        }
+        return acc;
+      }, {} as Record<string, string>);
+
+      // Parse and validate body for non-GET/DELETE methods
+      let body: TBody | null = null;
+      const method = request.method.toUpperCase();
+      
+      if (method !== "GET" && method !== "DELETE") {
+        try {
+          const json = await request.json().catch(() => ({}));
+          
+          if (options.bodySchema) {
+            const result = options.bodySchema.safeParse(json);
+            if (!result.success) {
+              return apiError(
+                "Validation error",
+                400,
+                result.error.issues
+              );
+            }
+            body = result.data;
+          } else {
+            body = json as TBody;
+          }
+        } catch {
+          // If JSON parsing fails and we have a body schema, that's an error
+          if (options.bodySchema) {
+            return apiError("Invalid JSON in request body", 400);
+          }
+        }
+      }
+
+      // Parse and validate query parameters
+      let query: TQuery | Record<string, string | null>;
+      try {
+        query = parseQueryParams(request, options.querySchema);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return apiError(
+            "Invalid query parameters",
+            400,
+            error.issues
+          );
+        }
+        throw error;
+      }
+
+      // Call the handler
+      const result = await handler({
+        body: body as TBody,
+        query: query as TQuery,
+        session,
+        params,
+        request,
+      });
+
+      // Return successful response
+      // If result is already a NextResponse, return it as-is
+      if (result instanceof NextResponse) {
+        return result;
+      }
+      
+      return apiResponse(result);
+    } catch (error) {
+      // Centralized error logging
+      console.error("API Error:", error);
+
+      // Handle specific error types
+      if (error instanceof Error) {
+        // Check for common error patterns
+        if (error.message.includes("Unauthorized")) {
+          return apiError("Unauthorized", 401);
+        }
+        if (error.message.includes("not found") || error.message.includes("Not found")) {
+          return apiError(error.message, 404);
+        }
+        if (error.message.includes("already exists") || error.message.includes("Unique constraint")) {
+          return apiError(error.message, 409);
+        }
+        if (error.message.includes("Invalid") || error.message.includes("validation")) {
+          return apiError(error.message, 400);
+        }
+        
+        return apiError(error.message, 500);
+      }
+
+      return apiError("Internal server error", 500);
+    }
+  };
+}
+

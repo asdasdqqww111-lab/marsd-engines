@@ -1,0 +1,422 @@
+# Thread System Architecture
+
+## Component Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Application                             │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                  ChatWithThreads                          │ │
+│  │                                                           │ │
+│  │  ┌─────────────────────┐  ┌──────────────────────────┐  │ │
+│  │  │   ChatContainer     │  │    ThreadPanel           │  │ │
+│  │  │                     │  │                          │  │ │
+│  │  │  ┌──────────────┐  │  │  ┌──────────────────┐   │  │ │
+│  │  │  │ MessageList  │  │  │  │   ThreadView     │   │  │ │
+│  │  │  │              │  │  │  │                  │   │  │ │
+│  │  │  │ ┌──────────┐ │  │  │  │ ┌──────────────┐│   │  │ │
+│  │  │  │ │ Message  │ │  │  │  │ │ ParentMsg    ││   │  │ │
+│  │  │  │ │   with   │ │  │  │  │ └──────────────┘│   │  │ │
+│  │  │  │ │ Thread   │ │  │  │  │                  │   │  │ │
+│  │  │  │ │ Preview  │ │  │  │  │ ┌──────────────┐│   │  │ │
+│  │  │  │ └──────────┘ │  │  │  │ │ ThreadMsg 1  ││   │  │ │
+│  │  │  │              │  │  │  │ │ ThreadMsg 2  ││   │  │ │
+│  │  │  │ ┌──────────┐ │  │  │  │ │ ThreadMsg 3  ││   │  │ │
+│  │  │  │ │ Message  │ │  │  │  │ └──────────────┘│   │  │ │
+│  │  │  │ └──────────┘ │  │  │  │                  │   │  │ │
+│  │  │  └──────────────┘  │  │  │ ┌──────────────┐│   │  │ │
+│  │  │                     │  │  │ │ ReplyInput   ││   │  │ │
+│  │  │  ┌──────────────┐  │  │  │ └──────────────┘│   │  │ │
+│  │  │  │ MessageInput │  │  │  └──────────────────┘   │  │ │
+│  │  │  └──────────────┘  │  │                          │  │ │
+│  │  └─────────────────────┘  └──────────────────────────┘  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                  ThreadSidebar                            │ │
+│  │                                                           │ │
+│  │  [All] [Unread] [Following]                              │ │
+│  │                                                           │ │
+│  │  ┌──────────────────────────────────────────────────┐   │ │
+│  │  │ Thread Item                                      │   │ │
+│  │  │  #channel-name                    2h ago         │   │ │
+│  │  │  👤 User: Message preview...                     │   │ │
+│  │  │  💬 5 replies                                    │   │ │
+│  │  └──────────────────────────────────────────────────┘   │ │
+│  │                                                           │ │
+│  │  ┌──────────────────────────────────────────────────┐   │ │
+│  │  │ Thread Item [UNREAD]                            │   │ │
+│  │  │  #general                         1m ago         │   │ │
+│  │  │  👤 Alice: Need help with...                     │   │ │
+│  │  │  💬 12 replies      🔔 New                       │   │ │
+│  │  └──────────────────────────────────────────────────┘   │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Data Layer                              │
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
+│  │  PostgreSQL  │  │   Hasura     │  │  GraphQL     │         │
+│  │              │◄─┤   Engine     │◄─┤ Subscriptions│         │
+│  │  nchat_*     │  │              │  │              │         │
+│  │  tables      │  │  Permissions │  │  Real-time   │         │
+│  └──────────────┘  └──────────────┘  └──────────────┘         │
+│         ▲                  ▲                  ▲                 │
+│         │                  │                  │                 │
+└─────────┼──────────────────┼──────────────────┼─────────────────┘
+          │                  │                  │
+          │                  │                  │
+┌─────────┼──────────────────┼──────────────────┼─────────────────┐
+│         │                  │                  │                 │
+│  ┌──────▼──────┐  ┌────────▼────────┐  ┌──────▼──────┐        │
+│  │   Queries   │  │   Mutations     │  │Subscriptions│        │
+│  │             │  │                 │  │             │        │
+│  │ GET_THREAD  │  │ CREATE_THREAD   │  │ THREAD_SUB  │        │
+│  │ GET_THREADS │  │ REPLY_TO_THREAD │  │ MESSAGES    │        │
+│  │ GET_USERS   │  │ JOIN_THREAD     │  │ PARTICIPANTS│        │
+│  │ SEARCH      │  │ MARK_READ       │  │             │        │
+│  └─────────────┘  └─────────────────┘  └─────────────┘        │
+│         ▲                  ▲                  ▲                 │
+│         │                  │                  │                 │
+│         └──────────────────┴──────────────────┘                 │
+│                            │                                    │
+│                            │                                    │
+│                    ┌───────▼────────┐                          │
+│                    │ Apollo Client  │                          │
+│                    │                │                          │
+│                    │  Cache         │                          │
+│                    │  Optimistic UI │                          │
+│                    │  Error Handling│                          │
+│                    └───────┬────────┘                          │
+│                            │                                    │
+└────────────────────────────┼─────────────────────────────────────┘
+                             │
+                             │
+┌────────────────────────────┼─────────────────────────────────────┐
+│                            │         Hook Layer                  │
+│                            │                                     │
+│                    ┌───────▼────────┐                           │
+│                    │   use-thread   │                           │
+│                    │                │                           │
+│                    │ - Data loading │                           │
+│                    │ - Subscriptions│                           │
+│                    │ - Send reply   │                           │
+│                    │ - Mark as read │                           │
+│                    │ - Join/Leave   │                           │
+│                    └────────────────┘                           │
+│                                                                  │
+│                    ┌────────────────┐                           │
+│                    │  use-threads   │                           │
+│                    │                │                           │
+│                    │ - List threads │                           │
+│                    │ - Search       │                           │
+│                    │ - Create       │                           │
+│                    │ - Activity feed│                           │
+│                    └────────────────┘                           │
+│                            │                                     │
+└────────────────────────────┼─────────────────────────────────────┘
+                             │
+                             │
+┌────────────────────────────┼─────────────────────────────────────┐
+│                            │      State Layer                    │
+│                            │                                     │
+│                    ┌───────▼────────┐                           │
+│                    │  Thread Store  │                           │
+│                    │   (Zustand)    │                           │
+│                    │                │                           │
+│                    │ Active thread  │                           │
+│                    │ Thread list    │                           │
+│                    │ Messages cache │                           │
+│                    │ Unread counts  │                           │
+│                    │ UI state       │                           │
+│                    │ Participants   │                           │
+│                    └────────────────┘                           │
+│                            │                                     │
+└────────────────────────────┼─────────────────────────────────────┘
+                             │
+                             │
+┌────────────────────────────┼─────────────────────────────────────┐
+│                            │   Component Layer                   │
+│                            │                                     │
+│         ┌──────────────────┴──────────────────┐                │
+│         │                                     │                │
+│  ┌──────▼──────┐                     ┌────────▼────────┐      │
+│  │ ThreadView  │                     │  ThreadSidebar  │      │
+│  │             │                     │                 │      │
+│  │ Displays    │                     │  Lists threads  │      │
+│  │ thread msgs │                     │  Filter/Search  │      │
+│  │ Reply input │                     │  Unread badges  │      │
+│  │ Actions     │                     │                 │      │
+│  └─────────────┘                     └─────────────────┘      │
+│                                                                │
+│  ┌─────────────┐                     ┌─────────────────┐      │
+│  │ ThreadPanel │                     │ MessageThread   │      │
+│  │             │                     │ Preview         │      │
+│  │ Wrapper     │                     │                 │      │
+│  │ component   │                     │ On messages     │      │
+│  └─────────────┘                     └─────────────────┘      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## State Management Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      User Actions                               │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ 1. Click "Start Thread"
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Component Layer                               │
+│                                                                 │
+│  MessageItem.onClick() → onThread(message)                     │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ 2. Call hook method
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Hook Layer                                   │
+│                                                                 │
+│  useThreads.createThread(messageId, content)                   │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ 3. Execute GraphQL mutation
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   GraphQL Layer                                 │
+│                                                                 │
+│  CREATE_THREAD mutation                                        │
+│  ├─ Insert thread record                                       │
+│  ├─ Insert first message                                       │
+│  ├─ Add user as participant                                    │
+│  └─ Return thread data                                         │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ 4. Update Apollo cache
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Apollo Client                                 │
+│                                                                 │
+│  Cache.writeQuery(GET_THREAD, newThread)                       │
+│  Cache.modify({ threads: [...existing, newThread] })           │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ 5. Update Zustand store
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Thread Store                                  │
+│                                                                 │
+│  addThread(newThread)                                          │
+│  setActiveThread(newThread)                                    │
+│  setThreadPanelOpen(true)                                      │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ 6. Re-render components
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Component Layer                               │
+│                                                                 │
+│  ChatWithThreads re-renders                                    │
+│  └─ ThreadPanel appears with new thread                        │
+│     └─ ThreadView shows parent message                         │
+│        └─ Reply input is ready                                 │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         │ 7. Subscribe to updates
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Subscriptions                                 │
+│                                                                 │
+│  THREAD_MESSAGES_SUBSCRIPTION                                  │
+│  └─ Listen for new replies                                     │
+│     └─ Update cache automatically                              │
+│        └─ Components re-render with new data                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Optimistic Update Flow
+
+```
+User sends reply
+       │
+       ▼
+┌──────────────────────────────────────┐
+│  1. Create optimistic message        │
+│     - Temporary ID                   │
+│     - User data                      │
+│     - Current timestamp              │
+└──────────────────────────────────────┘
+       │
+       ▼
+┌──────────────────────────────────────┐
+│  2. Update UI immediately            │
+│     - Message appears in list        │
+│     - Reply count +1                 │
+│     - "Sending..." indicator         │
+└──────────────────────────────────────┘
+       │
+       ▼
+┌──────────────────────────────────────┐
+│  3. Send mutation to server          │
+│     REPLY_TO_THREAD mutation         │
+└──────────────────────────────────────┘
+       │
+       ├───► Success
+       │         │
+       │         ▼
+       │     ┌──────────────────────────────────┐
+       │     │  4a. Replace optimistic data     │
+       │     │      - Real ID from server       │
+       │     │      - Server timestamp          │
+       │     │      - Remove pending indicator  │
+       │     └──────────────────────────────────┘
+       │
+       └───► Error
+                 │
+                 ▼
+             ┌──────────────────────────────────┐
+             │  4b. Show error state            │
+             │      - Mark message as failed    │
+             │      - Show retry button         │
+             │      - Keep in cache for retry   │
+             └──────────────────────────────────┘
+```
+
+## Real-time Sync Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Other User's Action                          │
+│                                                                 │
+│  User B sends reply in thread                                  │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Database Update                              │
+│                                                                 │
+│  INSERT INTO nchat_messages (thread_id, content, ...)          │
+│  UPDATE nchat_threads SET message_count++, last_reply_at       │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Hasura Event                                 │
+│                                                                 │
+│  Triggers GraphQL subscription                                 │
+│  THREAD_MESSAGES_SUBSCRIPTION                                  │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Apollo Client (User A)                       │
+│                                                                 │
+│  Receives subscription update                                  │
+│  onData callback fires                                         │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Cache Update                                 │
+│                                                                 │
+│  cache.modify({                                                │
+│    fields: {                                                   │
+│      nchat_messages: [...existing, newMessage]                │
+│    }                                                           │
+│  })                                                            │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Component Re-render                          │
+│                                                                 │
+│  ThreadView automatically shows new message                    │
+│  Unread badge updates (if not active)                         │
+│  Thread count increments                                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## File Organization
+
+```
+src/
+├── graphql/
+│   ├── queries/
+│   │   └── threads.ts              # GET_THREAD, GET_THREADS, SEARCH
+│   ├── mutations/
+│   │   └── threads.ts              # CREATE, REPLY, JOIN, LEAVE, etc.
+│   └── threads.ts                  # Subscriptions
+│
+├── hooks/
+│   ├── use-thread.ts               # Single thread management
+│   └── use-threads.ts              # Thread list management
+│
+├── stores/
+│   └── thread-store.ts             # Zustand store
+│
+├── components/
+│   ├── chat/
+│   │   ├── ThreadView.tsx          # Main thread display
+│   │   ├── ThreadPanel.tsx         # Panel wrapper
+│   │   ├── ThreadSummaryPanel.tsx  # AI summary
+│   │   └── message-thread-preview.tsx  # Preview on messages
+│   │
+│   └── thread/
+│       ├── thread-panel.tsx        # Full-featured panel
+│       ├── thread-sidebar.tsx      # Thread list sidebar
+│       ├── thread-header.tsx       # Thread header
+│       ├── thread-message-list.tsx # Message list
+│       ├── thread-reply-input.tsx  # Reply composer
+│       └── thread-participants.tsx # Participant list
+│
+└── types/
+    └── message.ts                  # ThreadInfo, Thread types
+```
+
+## Key Features Breakdown
+
+### 1. Thread Creation
+
+```
+Message → "Reply in thread" → CREATE_THREAD → New Thread
+```
+
+### 2. Thread Discovery
+
+```
+Channel → GET_CHANNEL_THREADS → Thread List
+User → GET_USER_THREADS → My Threads
+Search → SEARCH_CHANNEL_THREADS → Filtered Results
+```
+
+### 3. Thread Interaction
+
+```
+View → GET_THREAD + GET_THREAD_MESSAGES → Display
+Reply → REPLY_TO_THREAD → Optimistic Update → Server Sync
+Follow → JOIN_THREAD → Notifications Enabled
+```
+
+### 4. Thread Notifications
+
+```
+New Reply → Subscription → Store Update → Badge Update
+Mention → Notification → Unread Count++
+Mark Read → MARK_THREAD_READ → Badge Clear
+```
+
+### 5. Thread Search
+
+```
+Query → SEARCH_CHANNEL_THREADS → Filtered List
+Activity → GET_THREAD_ACTIVITY_FEED → Recent Activity
+```
+
+This architecture provides a robust, scalable, and maintainable thread system that integrates seamlessly with the existing nself-chat application.

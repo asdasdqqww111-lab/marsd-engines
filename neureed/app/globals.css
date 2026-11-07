@@ -1,0 +1,420 @@
+@import "tailwindcss";
+@import "./styles/design-tokens.css";
+
+/* Configure dark mode to use class strategy */
+@variant dark (&:where(.dark, .dark *));
+@variant nord-light (&:where(.nord-light, .nord-light *));
+@variant nord-dark (&:where(.nord-dark, .nord-dark *));
+@variant solarized-light (&:where(.solarized-light, .solarized-light *));
+@variant solarized-dark (&:where(.solarized-dark, .solarized-dark *));
+@variant barbie-light (&:where(.barbie-light, .barbie-light *));
+@variant barbie-dark (&:where(.barbie-dark, .barbie-dark *));
+@variant purple-light (&:where(.purple-light, .purple-light *));
+@variant purple-dark (&:where(.purple-dark, .purple-dark *));
+@variant orange-light (&:where(.orange-light, .orange-light *));
+@variant orange-dark (&:where(.orange-dark, .orange-dark *));
+@variant rainbow-light (&:where(.rainbow-light, .rainbow-light *));
+@variant rainbow-dark (&:where(.rainbow-dark, .rainbow-dark *));
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  
+  /* Add these mappings to bridge Custom Theme CSS -> Tailwind Utilities */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Default light theme defaults */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --primary: #2563eb; /* blue-600 */
+  --primary-foreground: #ffffff;
+  --secondary: #64748b;
+  --accent: #3b82f6;
+  --muted: #f1f5f9;
+  --border: #e2e8f0;
+
+  /* Font size variables - dynamically updated by ThemeProvider */
+  --font-size-sidebar: 14px; /* Default: medium (16px) + smaller (-2px) */
+  --font-size-card: 16px;    /* Default: medium (16px) + same (0) */
+  --font-size-modal: 16px;   /* Default: medium (16px) + same (0) */
+  --font-size-ui: 16px;      /* Default: medium (16px) + same (0) */
+}
+
+/* Dark mode via class */
+:root.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --primary: #3b82f6; /* blue-500 */
+  --primary-foreground: #ffffff;
+  --secondary: #94a3b8;
+  --accent: #60a5fa;
+  --muted: #1e293b;
+  --border: #334155;
+}
+
+/* Nord Light Theme */
+:root.nord-light {
+  --background: #eceff4; /* Snow Storm 1 */
+  --foreground: #2e3440; /* Polar Night 1 */
+  --primary: #5e81ac; /* Frost 4 */
+  --primary-foreground: #eceff4;
+  --secondary: #4c566a; /* Polar Night 4 */
+  --accent: #88c0d0; /* Frost 3 */
+  --muted: #e5e9f0; /* Snow Storm 2 */
+  --border: #d8dee9; /* Snow Storm 3 */
+}
+
+/* Nord Dark Theme */
+:root.nord-dark {
+  --background: #2e3440; /* Polar Night 1 */
+  --foreground: #eceff4; /* Snow Storm 1 */
+  --primary: #88c0d0; /* Frost 3 */
+  --primary-foreground: #2e3440;
+  --secondary: #81a1c1; /* Frost 2 */
+  --accent: #8fbcbb; /* Frost 1 */
+  --muted: #3b4252; /* Polar Night 2 */
+  --border: #4c566a; /* Polar Night 4 */
+}
+
+/* Solarized Light Theme */
+:root.solarized-light {
+  --background: #fdf6e3; /* Base3 - warm cream */
+  --foreground: #657b83; /* Base00 - primary content */
+  --primary: #268bd2; /* Blue */
+  --primary-foreground: #fdf6e3;
+  --secondary: #859900; /* Green */
+  --accent: #b58900; /* Yellow */
+  --muted: #eee8d5; /* Base2 - background highlights */
+  --border: #93a1a1; /* Base1 - optional emphasized content */
+}
+
+/* Solarized Dark Theme */
+:root.solarized-dark {
+  --background: #002b36; /* Base03 - dark blue-green */
+  --foreground: #839496; /* Base0 - body text */
+  --primary: #268bd2; /* Blue */
+  --primary-foreground: #002b36;
+  --secondary: #2aa198; /* Cyan */
+  --accent: #b58900; /* Yellow */
+  --muted: #073642; /* Base02 - background highlights */
+  --border: #586e75; /* Base01 - comments / secondary content */
+}
+
+/* Barbie Light Theme */
+:root.barbie-light {
+  --background: #fce7f3; /* Soft pink background */
+  --foreground: #831843; /* Deep magenta text */
+  --primary: #ec4899; /* Hot pink */
+  --primary-foreground: #ffffff;
+  --secondary: #f472b6; /* Medium pink */
+  --accent: #db2777; /* Vibrant pink */
+  --muted: #fbcfe8; /* Light pink highlights */
+  --border: #f9a8d4; /* Pink border */
+}
+
+/* Barbie Dark Theme */
+:root.barbie-dark {
+  --background: #500724; /* Deep burgundy pink */
+  --foreground: #fce7f3; /* Soft pink text */
+  --primary: #ec4899; /* Hot pink */
+  --primary-foreground: #500724;
+  --secondary: #f472b6; /* Medium pink */
+  --accent: #fbbf24; /* Gold accent */
+  --muted: #701a3c; /* Dark pink highlights */
+  --border: #9d174d; /* Pink-700 border */
+}
+
+/* Purple Light Theme */
+:root.purple-light {
+  --background: #faf5ff; /* Lightest purple */
+  --foreground: #581c87; /* Deep purple text */
+  --primary: #9333ea; /* Vibrant purple */
+  --primary-foreground: #ffffff;
+  --secondary: #a855f7; /* Medium purple */
+  --accent: #c084fc; /* Light purple accent */
+  --muted: #f3e8ff; /* Very light purple */
+  --border: #d8b4fe; /* Purple border */
+}
+
+/* Purple Dark Theme */
+:root.purple-dark {
+  --background: #3b0764; /* Deep purple */
+  --foreground: #f3e8ff; /* Light purple text */
+  --primary: #a855f7; /* Bright purple */
+  --primary-foreground: #3b0764;
+  --secondary: #c084fc; /* Light purple */
+  --accent: #e879f9; /* Magenta accent */
+  --muted: #581c87; /* Dark purple highlights */
+  --border: #7e22ce; /* Purple-700 border */
+}
+
+/* Orange Light Theme */
+:root.orange-light {
+  --background: #fff7ed; /* Warm cream */
+  --foreground: #7c2d12; /* Deep orange-brown text */
+  --primary: #ea580c; /* Vibrant orange */
+  --primary-foreground: #ffffff;
+  --secondary: #f97316; /* Bright orange */
+  --accent: #fb923c; /* Light orange accent */
+  --muted: #ffedd5; /* Peach highlights */
+  --border: #fdba74; /* Orange border */
+}
+
+/* Orange Dark Theme */
+:root.orange-dark {
+  --background: #431407; /* Deep burnt orange */
+  --foreground: #ffedd5; /* Warm cream text */
+  --primary: #f97316; /* Bright orange */
+  --primary-foreground: #431407;
+  --secondary: #fb923c; /* Medium orange */
+  --accent: #fbbf24; /* Golden yellow accent */
+  --muted: #7c2d12; /* Dark orange highlights */
+  --border: #c2410c; /* Orange-700 border */
+}
+
+/* Rainbow Light Theme - Purple to Pink Gradient */
+:root.rainbow-light {
+  --background: #faf5ff; /* Fallback light purple */
+  --foreground: #1a1a1a; /* Almost black text for readability */
+  --primary: #a855f7; /* Purple */
+  --primary-foreground: #ffffff;
+  --secondary: #ec4899; /* Pink */
+  --accent: #f0abfc; /* Light purple-pink */
+  --muted: #fae8ff; /* Very light purple */
+  --border: #e879f9; /* Magenta border */
+}
+
+/* Rainbow Dark Theme - Purple to Pink Gradient on Dark */
+:root.rainbow-dark {
+  --background: #1a0a2e; /* Fallback dark purple */
+  --foreground: #ffffff; /* Pure white text */
+  --primary: #c084fc; /* Bright purple */
+  --primary-foreground: #1a0a2e;
+  --secondary: #f472b6; /* Bright pink */
+  --accent: #e879f9; /* Magenta */
+  --muted: #2d1b4e; /* Dark purple */
+  --border: #a855f7; /* Purple border */
+}
+
+/* Apply gradient backgrounds */
+body.rainbow-light {
+  background: linear-gradient(135deg, #faf5ff 0%, #fce7f3 50%, #ffe4e6 100%);
+  background-attachment: fixed;
+}
+
+body.rainbow-dark {
+  background: linear-gradient(135deg, #1a0a2e 0%, #2d1440 25%, #3d0a45 50%, #4a0e4e 75%, #500724 100%);
+  background-attachment: fixed;
+}
+
+/* System preference fallback */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark):not(.nord-light):not(.nord-dark):not(.solarized-light):not(.solarized-dark):not(.barbie-light):not(.barbie-dark):not(.purple-light):not(.purple-dark):not(.orange-light):not(.orange-dark):not(.rainbow-light):not(.rainbow-dark) {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --primary: #3b82f6;
+    --secondary: #94a3b8;
+    --accent: #60a5fa;
+    --muted: #1e293b;
+    --border: #334155;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Modern custom scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 20%, transparent);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  width: 8px;
+}
+
+/* Firefox scrollbar styling */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
+}
+
+/* Apply to body for global modern scrollbar */
+body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 15%, transparent);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+body {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 15%, transparent) transparent;
+}
+
+/* Button Utilities - Modern, consistent button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: colors 0.2s;
+  outline: none;
+}
+
+.btn:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  ring: 2px;
+  ring-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--primary) 90%, black);
+}
+
+.btn-primary:focus {
+  ring-color: var(--primary);
+}
+
+.btn-secondary {
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--muted) 80%, black);
+}
+
+.btn-outline {
+  border: 1px solid var(--border);
+  background-color: var(--background);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--muted);
+}
+
+.btn-danger {
+  background-color: #dc2626;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #b91c1c;
+}
+
+:root.dark .btn-danger {
+  background-color: #b91c1c;
+}
+
+:root.dark .btn-danger:hover:not(:disabled) {
+  background-color: #991b1b;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* Mobile bottom sheet animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Swipe gesture indicator */
+@keyframes swipeHint {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-10px);
+  }
+}
+
+/* Inline article expansion animation */
+.inline-article-container {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem; /* Add internal padding */
+  background: var(--background);
+  animation: expandArticle 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes expandArticle {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 10000px;
+    opacity: 1;
+  }
+}

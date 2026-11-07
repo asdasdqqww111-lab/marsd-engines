@@ -1,0 +1,676 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - '.github/wiki/**'
+      - 'docs/**'
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - '.github/wiki/**'
+      - 'docs/**'
+  schedule:
+    # Run daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      fail_on_findings:
+        description: 'Fail workflow on critical/high findings'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+
+env:
+  NODE_VERSION: '22'
+  # Merge blocking policy: fail on critical or high vulnerabilities
+  FAIL_ON_CRITICAL: 'true'
+  FAIL_ON_HIGH: 'true'
+  MAX_MEDIUM_ALLOWED: '10'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # ==========================================================================
+  # SAST - Static Application Security Testing
+  # ==========================================================================
+  sast-scan:
+    name: SAST Scan
+    runs-on: ubuntu-latest
+    outputs:
+      findings_critical: ${{ steps.analyze.outputs.critical }}
+      findings_high: ${{ steps.analyze.outputs.high }}
+      findings_medium: ${{ steps.analyze.outputs.medium }}
+      should_block: ${{ steps.analyze.outputs.should_block }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run custom SAST scanner
+        id: sast
+        run: |
+          # Run our custom SAST scanner
+          pnpm tsx scripts/run-sast-scan.ts --output sast-results.json || true
+
+          if [ -f "sast-results.json" ]; then
+            echo "SAST scan completed"
+            cat sast-results.json
+          else
+            echo '{"findings":[],"summary":{"critical":0,"high":0,"medium":0,"low":0}}' > sast-results.json
+          fi
+
+      - name: Run Semgrep SAST
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/typescript
+            p/react
+            p/nodejs
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+          generateSarif: true
+        # ACCEPTED: SEMGREP_APP_TOKEN absent on forks/public PRs; findings still captured by custom SAST above.
+        # Expiry: permanent — third-party action token may be unavailable in fork contexts.
+        continue-on-error: true
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload Semgrep results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: 'semgrep-sast'
+        # ACCEPTED: SARIF upload requires GHAS (private repo feature); upload failure must not block CI.
+        # Expiry: permanent — SARIF upload is best-effort telemetry, not a gate.
+        continue-on-error: true
+
+      - name: Analyze SAST results
+        id: analyze
+        run: |
+          CRITICAL=0
+          HIGH=0
+          MEDIUM=0
+
+          # Parse custom SAST results
+          if [ -f "sast-results.json" ]; then
+            CRITICAL=$(jq -r '.summary.critical // 0' sast-results.json)
+            HIGH=$(jq -r '.summary.high // 0' sast-results.json)
+            MEDIUM=$(jq -r '.summary.medium // 0' sast-results.json)
+          fi
+
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+
+          # Determine if we should block
+          SHOULD_BLOCK="false"
+          if [ "${{ env.FAIL_ON_CRITICAL }}" = "true" ] && [ "$CRITICAL" -gt "0" ]; then
+            SHOULD_BLOCK="true"
+            echo "::error::Found $CRITICAL critical SAST findings - blocking merge"
+          fi
+          if [ "${{ env.FAIL_ON_HIGH }}" = "true" ] && [ "$HIGH" -gt "0" ]; then
+            SHOULD_BLOCK="true"
+            echo "::error::Found $HIGH high severity SAST findings - blocking merge"
+          fi
+
+          echo "should_block=$SHOULD_BLOCK" >> $GITHUB_OUTPUT
+          echo "## SAST Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+          echo "| Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload SAST results artifact
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sast-results
+          path: |
+            frontend/sast-results.json
+            semgrep.sarif
+          retention-days: 30
+
+  # ==========================================================================
+  # SCA - Software Composition Analysis (Dependencies)
+  # ==========================================================================
+  dependency-scan:
+    name: Dependency Scan (SCA)
+    runs-on: ubuntu-latest
+    outputs:
+      findings_critical: ${{ steps.analyze.outputs.critical }}
+      findings_high: ${{ steps.analyze.outputs.high }}
+      findings_moderate: ${{ steps.analyze.outputs.moderate }}
+      should_block: ${{ steps.analyze.outputs.should_block }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run pnpm audit
+        id: audit
+        run: |
+          # Run audit and capture output
+          pnpm audit --json > audit-report.json 2>&1 || true
+
+          # Extract counts from audit report
+          if [ -f "audit-report.json" ]; then
+            # .metadata.vulnerabilities counts EVERY advisory, including ones this
+            # repo has explicitly and reviewably accepted in
+            # package.json > pnpm.auditConfig.ignoreCves (no patched release
+            # upstream, build-time-only deps). `pnpm audit` honours that list
+            # (exits 0, prints "(N ignored)") but the raw JSON does not — so the
+            # gate blocked every PR on CVEs already assessed. Apply the same list
+            # here, using jq only (no heredocs: this is inside a YAML block scalar).
+            #
+            # Read the list from the REPOSITORY ROOT, not from frontend/. This step
+            # runs with working-directory: frontend, so a bare `package.json` here
+            # is frontend/package.json — whose pnpm.auditConfig is empty. The
+            # curated list lives in the root package.json (image-size x2,
+            # extract-zip), so the gate silently applied NO ignores and re-blocked
+            # on advisories that had already been assessed and accepted. One list,
+            # at the root, is the point; two would drift.
+            #
+            # What is on that list, and why each entry is allowed to be there.
+            # An advisory may be ignored ONLY while it has no published fix; the
+            # moment one exists the entry comes off and the dependency is bumped.
+            #   CVE-2025-71330 / CVE-2025-71329  image-size  (GHSA-w3rx-r6r6-pgpr,
+            #     GHSA-5p2g-fcmc-qvqq)  ICNS/JXL/HEIF infinite-loop DoS.
+            #     first_patched_version NONE against <= 2.0.2, which is still npm
+            #     latest. Build-time only, via Metro.
+            #   CVE-2026-56876 / CVE-2026-19693  extract-zip  (GHSA-jmr9-qjv8-65gv,
+            #     GHSA-7pqw-9j4j-h8q3)  two symlink path-traversal advisories on the
+            #     same package. first_patched_version NONE against <= 2.0.1, and
+            #     2.0.1 IS npm latest, so there is nothing to upgrade to. Reaches
+            #     the tree only through devDependencies (@lhci/cli and
+            #     @wdio/appium-service, both via @puppeteer/browsers) unpacking
+            #     archives this repo's CI fetches itself; never shipped to users.
+            #   CVE-2026-85393  node-forge  (GHSA-86w9-cpqp-85rv)  <= 1.4.0, which is
+            #     npm latest; first_patched_version NONE. Reached only via
+            #     @expo/cli > @expo/code-signing-certificates (expo build tooling,
+            #     devDependencies of @nself/native-bridge). Not in web/server runtime.
+            #   CVE-2026-93748  http-cache-semantics  (GHSA-ch52-4w7c-c8xp)  <= 4.2.0,
+            #     first_patched_version NONE. devDependency only, via artillery
+            #     (load-test tooling, got).
+            #   CVE-2026-93687  braces  (GHSA-vfj7-8cjw-p6xm)  <= 3.0.3,
+            #     first_patched_version NONE. Glob/brace-pattern ReDoS reached only
+            #     through build and test tooling: tailwindcss (CSS compile), metro
+            #     (react-native bundler), jest, detox, artillery. Never loaded by
+            #     shipped runtime code.
+            #   Review date for these three: 2026-11-01.
+            # Re-check each on any dependency sweep: `gh api /advisories/<GHSA>`
+            # reporting a first_patched_version means the entry must be removed.
+            IGNORED=$(jq -r '(.pnpm.auditConfig.ignoreCves // [])[]' "${GITHUB_WORKSPACE}/package.json" 2>/dev/null | jq -R . | jq -s . )
+            IGNORED=${IGNORED:-[]}
+            COUNTS=$(jq -r --argjson ign "$IGNORED" '
+              (.advisories // {})
+              | [ .[]
+                  | select( ((.cves // []) + [(.github_advisory_id // "")]) as $ids
+                            | ($ids | map(select(. as $i | $ign | index($i))) | length) == 0 )
+                  | .severity ]
+              | {critical: (map(select(.=="critical")) | length),
+                 high:     (map(select(.=="high"))     | length),
+                 moderate: (map(select(.=="moderate")) | length),
+                 low:      (map(select(.=="low"))      | length)}
+              | "\(.critical) \(.high) \(.moderate) \(.low)"' audit-report.json 2>/dev/null)
+            if [ -n "$COUNTS" ]; then
+              read -r CRITICAL HIGH MODERATE LOW <<< "$COUNTS"
+            else
+              CRITICAL=$(jq -r '.metadata.vulnerabilities.critical // 0' audit-report.json)
+              HIGH=$(jq -r '.metadata.vulnerabilities.high // 0' audit-report.json)
+              MODERATE=$(jq -r '.metadata.vulnerabilities.moderate // 0' audit-report.json)
+              LOW=$(jq -r '.metadata.vulnerabilities.low // 0' audit-report.json)
+            fi
+            echo "Blocking counts (ignoreCves applied): critical=$CRITICAL high=$HIGH moderate=$MODERATE low=$LOW"
+
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high=$HIGH" >> $GITHUB_OUTPUT
+            echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+            echo "low=$LOW" >> $GITHUB_OUTPUT
+          else
+            echo "critical=0" >> $GITHUB_OUTPUT
+            echo "high=0" >> $GITHUB_OUTPUT
+            echo "moderate=0" >> $GITHUB_OUTPUT
+            echo "low=0" >> $GITHUB_OUTPUT
+          fi
+        # ACCEPTED: pnpm audit exits non-zero on any finding; raw counts are captured and analyzed by the gate below.
+        # Expiry: permanent — audit captures findings; blocking happens in security-gate job via should_block output.
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-sca'
+        # ACCEPTED: SARIF upload requires GHAS; failure must not block CI gate (blocking is in security-gate job).
+        # Expiry: permanent — SARIF upload is best-effort telemetry.
+        continue-on-error: true
+
+      - name: Analyze dependency results
+        id: analyze
+        run: |
+          CRITICAL=${{ steps.audit.outputs.critical || 0 }}
+          HIGH=${{ steps.audit.outputs.high || 0 }}
+          MODERATE=${{ steps.audit.outputs.moderate || 0 }}
+
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+
+          # Determine if we should block
+          SHOULD_BLOCK="false"
+          if [ "${{ env.FAIL_ON_CRITICAL }}" = "true" ] && [ "$CRITICAL" -gt "0" ]; then
+            SHOULD_BLOCK="true"
+            echo "::error::Found $CRITICAL critical dependency vulnerabilities - blocking merge"
+          fi
+          if [ "${{ env.FAIL_ON_HIGH }}" = "true" ] && [ "$HIGH" -gt "0" ]; then
+            SHOULD_BLOCK="true"
+            echo "::error::Found $HIGH high severity dependency vulnerabilities - blocking merge"
+          fi
+
+          echo "should_block=$SHOULD_BLOCK" >> $GITHUB_OUTPUT
+          echo "## Dependency Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+          echo "| Moderate | $MODERATE |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload dependency scan results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: dependency-scan-results
+          path: |
+            frontend/audit-report.json
+            trivy-results.sarif
+          retention-days: 30
+
+  # ==========================================================================
+  # Secrets Scan
+  # ==========================================================================
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    outputs:
+      found_secrets: ${{ steps.scan.outputs.found_secrets }}
+    # Only run on PRs or scheduled/manual runs (not push to main to avoid blocking on existing history)
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.0/gitleaks_8.30.0_linux_x64.tar.gz \
+            | tar xz -C /usr/local/bin gitleaks
+
+      - name: Gitleaks secret scan
+        run: gitleaks detect --source=. --log-level=warn --redact --config .gitleaks.toml
+
+      - name: TruffleHog scan
+        id: trufflehog
+        uses: trufflesecurity/trufflehog@31ce31ee1abbcc7dc8eee5764c17121c3044c8b2  # v3.99.7
+        with:
+          path: ./
+          base: ${{ github.event.pull_request.base.sha || '' }}
+          head: ${{ github.event.pull_request.head.sha || 'HEAD' }}
+          extra_args: --only-verified
+        # ACCEPTED: TruffleHog may fail on shallow clones or API rate limits; custom scanner below is authoritative.
+        # Expiry: permanent — third-party action is best-effort supplementary; custom scan is the gate.
+        continue-on-error: true
+
+      - name: Run custom secret scanner
+        id: custom_scan
+        run: |
+          # Create a simple secret scanner
+          FOUND=0
+
+          # Scan for common secret patterns in staged files
+          PATTERNS=(
+            'AKIA[0-9A-Z]{16}'
+            'gh[pousr]_[A-Za-z0-9_]{36,}'
+            'sk_(live|test)_[0-9a-zA-Z]{24,}'
+            'xox[baprs]-[0-9A-Za-z-]+'
+            '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'
+          )
+
+          for pattern in "${PATTERNS[@]}"; do
+            if grep -rE "$pattern" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" --include="*.env*" frontend/ 2>/dev/null | grep -v "node_modules" | grep -v ".test."; then
+              FOUND=1
+              echo "::warning::Potential secret found matching pattern: $pattern"
+            fi
+          done
+
+          echo "found_secrets=$FOUND" >> $GITHUB_OUTPUT
+
+      - name: Analyze secrets scan
+        id: scan
+        run: |
+          FOUND="${{ steps.custom_scan.outputs.found_secrets || '0' }}"
+          echo "found_secrets=$FOUND" >> $GITHUB_OUTPUT
+
+          if [ "$FOUND" = "1" ]; then
+            echo "::error::Potential secrets detected - review before merging"
+          fi
+
+          echo "## Secrets Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$FOUND" = "1" ]; then
+            echo "**WARNING**: Potential secrets detected!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No verified secrets found." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ==========================================================================
+  # License Compliance
+  # ==========================================================================
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    outputs:
+      has_restricted: ${{ steps.check.outputs.has_restricted }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check licenses
+        id: check
+        run: |
+          # Allowed licenses (permissive)
+          ALLOWED="MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;CC-BY-3.0;CC-BY-4.0;0BSD;Unlicense;Python-2.0;Zlib;WTFPL;BlueOak-1.0.0"
+
+          # Known, previously-reviewed copyleft dependencies. license-checker flags every
+          # package in this list on every run (they cannot be swapped for permissive
+          # equivalents without a feature-level replacement), so they are excluded here
+          # instead of being silently swallowed by the old blanket continue-on-error.
+          # Exceptions below are for the security-gate below, not automatic clearance —
+          # revisit if a maintainer decides to relicense/replace either dependency.
+          #   - @signalapp/libsignal-client (AGPL-3.0-only) — Signal Protocol E2E encryption core.
+          #   - ffmpeg-static (GPL-3.0-or-later) — bundled ffmpeg binary for attachment transcoding
+          #     (frontend/src/app/api/attachments/upload/route.ts).
+          EXCLUDE_PACKAGES="@signalapp/libsignal-client@0.88.3;ffmpeg-static@5.3.0"
+
+          # Run license checker (--excludePrivatePackages drops this app's own
+          # UNLICENSED/private package.json, which would otherwise always self-flag).
+          npx license-checker --production --excludePrivatePackages --excludePackages "$EXCLUDE_PACKAGES" --onlyAllow "$ALLOWED" --summary > license-report.txt 2>&1 || HAS_RESTRICTED=1
+
+          if [ "${HAS_RESTRICTED:-0}" = "1" ]; then
+            echo "has_restricted=true" >> $GITHUB_OUTPUT
+            echo "::warning::Some dependencies have restricted licenses"
+          else
+            echo "has_restricted=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "## License Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Known exceptions (excluded from the check above; see workflow source for rationale): @signalapp/libsignal-client, ffmpeg-static._" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat license-report.txt >> $GITHUB_STEP_SUMMARY
+        # ACCEPTED: this step's own exit status doesn't determine blocking — the has_restricted
+        # output is read by the security-gate job below, which enforces the actual policy (same
+        # pattern as the pnpm-audit step above). continue-on-error only protects against the
+        # license-checker CLI itself erroring on unrelated issues (e.g. unresolvable metadata).
+        # Expiry: permanent — blocking is centralized in security-gate, not this step's exit code.
+        continue-on-error: true
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: license-report
+          path: frontend/license-report.txt
+          retention-days: 30
+
+  # ==========================================================================
+  # CodeQL Analysis
+  # ==========================================================================
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:javascript-typescript"
+
+  # ==========================================================================
+  # Security Gate - Enforces merge blocking policy
+  # ==========================================================================
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    needs: [sast-scan, dependency-scan, secrets-scan, license-check]
+    if: always()
+    steps:
+      - name: Evaluate security gate
+        id: gate
+        run: |
+          # Collect results
+          SAST_BLOCK="${{ needs.sast-scan.outputs.should_block || 'false' }}"
+          DEP_BLOCK="${{ needs.dependency-scan.outputs.should_block || 'false' }}"
+          SECRETS_FOUND="${{ needs.secrets-scan.outputs.found_secrets || '0' }}"
+          LICENSE_RESTRICTED="${{ needs.license-check.outputs.has_restricted || 'false' }}"
+
+          # Count findings
+          SAST_CRITICAL="${{ needs.sast-scan.outputs.findings_critical || 0 }}"
+          SAST_HIGH="${{ needs.sast-scan.outputs.findings_high || 0 }}"
+          DEP_CRITICAL="${{ needs.dependency-scan.outputs.findings_critical || 0 }}"
+          DEP_HIGH="${{ needs.dependency-scan.outputs.findings_high || 0 }}"
+
+          # Calculate totals
+          TOTAL_CRITICAL=$((SAST_CRITICAL + DEP_CRITICAL))
+          TOTAL_HIGH=$((SAST_HIGH + DEP_HIGH))
+
+          echo "## Security Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST Scan | ${{ needs.sast-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets Scan | ${{ needs.secrets-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Check | ${{ needs.license-check.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Findings" >> $GITHUB_STEP_SUMMARY
+          echo "- Total Critical: $TOTAL_CRITICAL" >> $GITHUB_STEP_SUMMARY
+          echo "- Total High: $TOTAL_HIGH" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Determine gate status
+          GATE_PASS="true"
+          REASONS=""
+
+          if [ "$SAST_BLOCK" = "true" ]; then
+            GATE_PASS="false"
+            REASONS="$REASONS- SAST findings exceed threshold\n"
+          fi
+
+          if [ "$DEP_BLOCK" = "true" ]; then
+            GATE_PASS="false"
+            REASONS="$REASONS- Dependency vulnerabilities exceed threshold\n"
+          fi
+
+          if [ "$SECRETS_FOUND" = "1" ]; then
+            GATE_PASS="false"
+            REASONS="$REASONS- Potential secrets detected\n"
+          fi
+
+          if [ "$LICENSE_RESTRICTED" = "true" ]; then
+            GATE_PASS="false"
+            REASONS="$REASONS- Restricted-license dependency detected (not on the known-exception list — see license-check step)\n"
+          fi
+
+          if [ "$GATE_PASS" = "true" ]; then
+            echo "### Result: PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "gate_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "### Result: BLOCKED" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Blocking Reasons:**" >> $GITHUB_STEP_SUMMARY
+            echo -e "$REASONS" >> $GITHUB_STEP_SUMMARY
+            echo "gate_passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Enforce security gate
+        if: ${{ steps.gate.outputs.gate_passed == 'false' && (github.event_name == 'pull_request' || github.event.inputs.fail_on_findings == 'true') }}
+        run: |
+          echo "::error::Security gate failed - merge blocked due to security findings"
+          exit 1
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const gatePassed = '${{ steps.gate.outputs.gate_passed }}' === 'true';
+            const sastCritical = parseInt('${{ needs.sast-scan.outputs.findings_critical || 0 }}');
+            const sastHigh = parseInt('${{ needs.sast-scan.outputs.findings_high || 0 }}');
+            const depCritical = parseInt('${{ needs.dependency-scan.outputs.findings_critical || 0 }}');
+            const depHigh = parseInt('${{ needs.dependency-scan.outputs.findings_high || 0 }}');
+
+            let body = gatePassed
+              ? '## Security Scan Results: PASSED\n\n'
+              : '## Security Scan Results: BLOCKED\n\n';
+
+            body += '| Scanner | Critical | High |\n';
+            body += '|---------|----------|------|\n';
+            body += `| SAST | ${sastCritical} | ${sastHigh} |\n`;
+            body += `| Dependencies | ${depCritical} | ${depHigh} |\n\n`;
+
+            if (!gatePassed) {
+              body += '**This PR is blocked due to security findings.** Please address the vulnerabilities before merging.\n\n';
+              body += 'View the [Security tab](../../security) for detailed findings.';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+        # ACCEPTED: PR comment may fail if permissions are restricted on fork PRs.
+        # Expiry: permanent — PR comments are informational, not gates.
+        continue-on-error: true
+
+  # ==========================================================================
+  # Summary Report
+  # ==========================================================================
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [sast-scan, dependency-scan, secrets-scan, license-check, codeql, security-gate]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        # ACCEPTED: some artifacts may not exist if upstream jobs were skipped or failed.
+        # Expiry: permanent — summary generation must not fail due to missing artifacts.
+        continue-on-error: true
+
+      - name: Generate final summary
+        run: |
+          echo "# Security Scan Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Scan completed at: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST Scan | ${{ needs.sast-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets Scan | ${{ needs.secrets-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Check | ${{ needs.license-check.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Gate | ${{ needs.security-gate.result }} |" >> $GITHUB_STEP_SUMMARY

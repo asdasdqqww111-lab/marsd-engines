@@ -1,0 +1,278 @@
+# =============================================================================
+# nself-chat .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+node_modules/
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# -----------------------------------------------------------------------------
+# Build Output
+# -----------------------------------------------------------------------------
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+# Stray compiled output that has landed inside package src/ dirs (outDir
+# misconfiguration) — packages/*/tsconfig.json always emit to dist/, these
+# should never be tracked. Fixed 2026-07-04 (Windows Tauri build TS5011).
+packages/*/src/index.js
+packages/*/src/index.d.ts
+packages/*/src/index.d.ts.map
+
+# -----------------------------------------------------------------------------
+# Testing
+# -----------------------------------------------------------------------------
+/coverage/
+/test-results/
+/playwright-report/
+/playwright/.auth/
+*.lcov
+
+# Storybook
+storybook-static/
+
+# -----------------------------------------------------------------------------
+# Environment & Secrets (CRITICAL - Never commit these)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!backend/.env.dev
+*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Backend secrets
+.backend/.env
+.backend/.env.*
+.backend/secrets/
+.backend/*.secret
+.backend/*.key
+.backend/*.pem
+
+# API keys and tokens
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+/secrets/
+/.secrets/
+/credentials/
+/.credentials/
+
+# -----------------------------------------------------------------------------
+# IDE & Editor
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# -----------------------------------------------------------------------------
+# OS Files
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# -----------------------------------------------------------------------------
+# Debug & Logs
+# -----------------------------------------------------------------------------
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+logs/
+# Exception: API route directories named 'logs' are source code, not log files
+!frontend/src/app/api/**/logs/
+!frontend/src/app/api/**/logs/**
+
+# -----------------------------------------------------------------------------
+# Runtime Data
+# -----------------------------------------------------------------------------
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# -----------------------------------------------------------------------------
+# Cache
+# -----------------------------------------------------------------------------
+.cache/
+.parcel-cache/
+.turbo/
+.swc/
+.eslintcache
+.stylelintcache
+
+# -----------------------------------------------------------------------------
+# Deployment
+# -----------------------------------------------------------------------------
+.vercel/
+.netlify/
+.serverless/
+
+# -----------------------------------------------------------------------------
+# Backend (nself CLI project)
+# -----------------------------------------------------------------------------
+.backend/
+!.backend/.gitkeep
+.nself/
+backend/.nself/
+# nself build generates docker-compose.yml — never track it (may contain secrets)
+backend/docker-compose.yml
+backend/docker-compose.override.yml
+
+# -----------------------------------------------------------------------------
+# Mobile & Desktop Build Output (in platforms/)
+# -----------------------------------------------------------------------------
+# Capacitor
+android/
+ios/
+platforms/capacitor/android/
+platforms/capacitor/ios/
+
+# Tauri
+platforms/tauri/target/
+
+# Electron
+platforms/electron/dist/
+platforms/electron/out/
+platforms/electron/release/
+platforms/electron/main/**/*.js
+platforms/electron/main/**/*.js.map
+platforms/electron/preload/**/*.js
+platforms/electron/preload/**/*.js.map
+!platforms/electron/**/*.config.js
+
+# React Native
+platforms/react-native/android/app/build/
+platforms/react-native/ios/build/
+platforms/react-native/ios/Pods/
+platforms/react-native/.expo/
+
+# -----------------------------------------------------------------------------
+# Internal/Development Files (not for public repo)
+# -----------------------------------------------------------------------------
+TRACKING.md
+NEXT.md
+TODO.md
+*.draft.md
+.notes/
+.scratch/
+.tmp/
+temp/
+tmp/
+
+# -----------------------------------------------------------------------------
+# Sensitive Documentation
+# -----------------------------------------------------------------------------
+docs/internal/
+docs/private/
+*.private.md
+
+# -----------------------------------------------------------------------------
+# Protocol & Schema
+# -----------------------------------------------------------------------------
+.protocol-ts/
+
+# -----------------------------------------------------------------------------
+# Generated Files
+# -----------------------------------------------------------------------------
+*.generated.*
+*.auto.*
+*.tsbuildinfo
+next-env.d.ts
+
+# -----------------------------------------------------------------------------
+# Uploads & User Content
+# -----------------------------------------------------------------------------
+/uploads/
+/public/uploads/
+/storage/
+
+# -----------------------------------------------------------------------------
+# Miscellaneous
+# -----------------------------------------------------------------------------
+*.local
+*.backup
+*.bak
+*.orig
+# AI assistant directories (legacy)
+.ai-assistant/
+
+# nSelf CLI feedback (private)
+CLI.md
+
+# Analytics & Monitoring
+google-services.json
+GoogleService-Info.plist
+sentry.properties
+platforms/capacitor/android/sentry.properties
+platforms/capacitor/ios/sentry.properties
+platforms/capacitor/android/app/google-services.json
+platforms/capacitor/ios/App/App/GoogleService-Info.plist
+
+# Private planning
+/PLAN.md
+
+# AI agent directories (private)
+.ai/
+
+# Standard entries (added by global compliance)
+.env.*.local
+*.tmp
+*.temp
+coverage/
+test-results/
+DONE.md
+FEEDBACK.md
+PLAN.md
+READY.md
+.claude/
+.codex/
+.cursor/
+.allow-ai-terms
+.vscode/*
+.aider/
+.aider.chat.history.md
+.continue/
+.windsurf/
+.gemini/
+.codeium/
+.vscode/*
+.idea/
+.claude/
+.codex/
+.cursor/
+.aider/
+.aider.chat.history.md
+.continue/
+.windsurf/
+.gemini/
+.codeium/
+.claude/
+desktop/src-tauri/target/
+*.generated.env
+**/*.gen.yml
