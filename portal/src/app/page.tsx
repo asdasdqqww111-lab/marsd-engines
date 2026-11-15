@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
   healthy: "يعمل",
-  degraded: "يعمل جزئيًا",
+  degraded: "يعمل جزئيًaً",
   down: "غير متاح",
   unknown: "غير معروف",
 };
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
               <th style={{ padding: "12px", textAlign: "right" }}>التطبيق</th>
               <th style={{ padding: "12px", textAlign: "right" }}>المعرّف التقني</th>
               <th style={{ padding: "12px", textAlign: "right" }}>الحالة</th>
-              <th style={{ padding: "12px", textAlign: "right" }}>زمن الاستجابة</th>
+              <th style("12px", textAlign: "right" }}>زمن الاستجابة</th>
               <th style={{ padding: "12px", textAlign: "right" }}>التفاصيل</th>
             </tr>
           </thead>
@@ -141,7 +141,7 @@ export default async function DashboardPage() {
             })}
           </tbody>
         </table>
-      </design></div>
+      </div>
 
       <p
         style={{
