@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
   healthy: "يعمل",
-  degraded: "يعمل جزئيًaً",
+  degraded: "يعمل جزئيًا",
   down: "غير متاح",
   unknown: "غير معروف",
 };
@@ -54,8 +54,7 @@ export default async function DashboardPage() {
               margin: "4px 0 0",
               color: "var(--hudhud-text-secondary)",
               fontSize: "0.85rem",
-            }}
-          >
+n          }}>
             لوحة القيادة الموحدة — الحالات أدناه فحص فعلي لحظي
           </p>
         </div>
@@ -74,12 +73,12 @@ export default async function DashboardPage() {
               <th style={{ padding: "12px", textAlign: "right" }}>التطبيق</th>
               <th style={{ padding: "12px", textAlign: "right" }}>المعرّف التقني</th>
               <th style={{ padding: "12px", textAlign: "right" }}>الحالة</th>
-              <th style("12px", textAlign: "right" }}>زمن الاستجابة</th>
+              <th style={{ padding: "12px", textAlign: "right" }}>زمن الاستجابة</th>
               <th style={{ padding: "12px", textAlign: "right" }}>التفاصيل</th>
             </tr>
           </thead>
           <tbody>
-            {HUDHUD_APPS.map((app) => {
+            {HUDHUD_APPS apps.map((app) => {
               const r = results.find((x) => x.techId === app.techId);
               const status = r?.status ?? "unknown";
               return (
