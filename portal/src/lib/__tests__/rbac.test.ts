@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hasPermission, normalizeRole, PERMISSION_MATRIX } from "@/lib/rbac";
+import {
+  checkPortalRoleChange,
+  hasPermission,
+  normalizeRole,
+  PERMISSION_MATRIX,
+} from "@/lib/rbac";
 
 describe("rbac", () => {
   it("admin has all five permissions", () => {
@@ -27,5 +32,50 @@ describe("rbac", () => {
     expect(normalizeRole("banana")).toBe("viewer");
     expect(normalizeRole(null)).toBe("viewer");
     expect(normalizeRole("admin")).toBe("admin");
+  });
+});
+
+describe("checkPortalRoleChange", () => {
+  it("allows changing another operator's role", () => {
+    const r = checkPortalRoleChange({
+      actorUserId: "u-1",
+      actorPortalRole: "admin",
+      targetUserId: "u-2",
+      newRole: "viewer",
+    });
+    expect(r.allowed).toBe(true);
+    expect(r.reason).toBeUndefined();
+  });
+
+  it("allows keeping your own role unchanged", () => {
+    const r = checkPortalRoleChange({
+      actorUserId: "u-1",
+      actorPortalRole: "admin",
+      targetUserId: "u-1",
+      newRole: "admin",
+    });
+    expect(r.allowed).b
+  });
+
+  it("forbids self-demotion (lockout protection)", () => {
+    const r = checkPortalRoleChange({
+      actorUserId: "u-1",
+      actorPortalRole: "admin",
+      targetUserId: "u-1",
+      newRole: "viewer",
+    });
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("self_demotion_forbidden");
+  });
+
+  it("forbids any self role change (defense in depth)", () => {
+    const r = checkPortalRoleChange({
+      actorUserId: "u-3",
+      actorPortalRole: "operator",
+      targetUserId: "u-3",
+      newRole: "admin",
+    });
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("self_demotion_forbidden");
   });
 });
