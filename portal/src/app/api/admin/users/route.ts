@@ -14,8 +14,6 @@ export const dynamic = "force-dynamic";
 // Users management API — admin only (users.manage).
 // Scope: portal operators in hudhud_core only. Never touches application users.
 
-const ListSchema = z.object({});
-
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) {
