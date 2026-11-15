@@ -72,7 +72,6 @@ export default async function DashboardPage() {
           <thead>
             <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
               <th style={{ padding: "12px", textAlign: "right" }}>التطبيق</th>
-              tech_id column header
               <th style={{ padding: "12px", textAlign: "right" }}>المعرّف التقني</th>
               <th style={{ padding: "12px", textAlign: "right" }}>الحالة</th>
               <th style={{ padding: "12px", textAlign: "right" }}>زمن الاستجابة</th>
@@ -111,6 +110,7 @@ export default async function DashboardPage() {
                       fontWeight: 600,
                       color: STATUS_COLOR[status],
                     }}
+                  >
                     {STATUS_LABEL[status]}
                     {r?.httpStatus != null ? (
                       <span
@@ -141,7 +141,7 @@ export default async function DashboardPage() {
             })}
           </tbody>
         </table>
-      </div>
+      </design></div>
 
       <p
         style={{
