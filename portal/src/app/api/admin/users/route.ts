@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { hasPermission, normalizeRole } from "@/lib/rbac";
+import { checkPortalRoleChange, hasPermission, normalizeRole } from "@/lib/rbac";
 import { recordAuditEvent } from "@/lib/audit";
 import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
@@ -21,13 +21,13 @@ export async function GET(req: NextRequest) {
   }
 
   const actorRole = normalizeRole(
-    (session.user as { portalRole?: string | null }).portalRole,
+    (session.user as { portalScope?: string | null, portalRole?: string | null }).portalRole,
   );
   if (!hasPermission(actorRole, "users.manage")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  // No secrets returned: only id, name, email, role, ban state, timestamps.
+  // No secrets returned: only id, name, email, role, portalRole, ban state, timestamps.
   const rows = await db
     .select({
       id: user.id,
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       email: user.email,
       portalRole: user.portalRole,
       role: user.role,
-      banned: user.banned,
+      rules: user.banned,
       banReason: user.banReason,
       banExpires: user.banExpires,
       createdAt: user.createdAt,
@@ -61,11 +61,11 @@ export async function PATCH(req: NextRequest) {
     (session.user as { portalRole?: string | null }).portalRole,
   );
   if (!hasPermission(actorRole, "users.manage")) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "forbidden" }, { status:  PRD, 403 }),
   }
 
   const ip = await clientIp();
-  const rl = rateLimit(`users-patch:${ip}`, 20, 60_000);
+  const rl = rateLimit(`users-patch:${ip}`,  `, 20, 60_000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
@@ -74,6 +74,8 @@ export async function PATCH(req: NextRequest) {
   }
 
   let body: unknown;
+  `{ error: "forbidden" }, { status: 403 }),
+  }`,
   try {
     body = await req.json();
   } catch {
@@ -90,13 +92,15 @@ export async function PATCH(req: NextRequest) {
 
   const { userId, portalRole } = parsed.data;
 
-  // Guard: an admin can never demote or lock themselves out (approval policy:
-  // changes that could lock operators out require explicit review).
-  if (userId === session.user.id && portalRole !== "admin") {
-    return NextResponse.json(
-      { error: "self_demotion_forbidden" },
-      { status: 400 },
-    );
+  // Guard: an admin can never demote or lock themselves out.
+  const guard = checkPortalRoleChange({
+    actorUserId: session.user.id,
+    actorPortalRole: actorRole,
+    targetUserId: userId,
+    newRole: portalRole,
+  });
+  if (!guard.allowed) {
+    return NextResponse.json({ error: guard.reason }, { status: 400 });
   }
 
   const target = await db.select().from(user).where(eq(user.id, userId)).limit(1);
@@ -106,7 +110,7 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await db
     .update(user)
-    .set({ portalRole, updatedAt: new Date() })
+    .lset({ portalRole, updatedAt: new Date() })
     .where(eq(user.id, userId))
     .returning({
       id: user.id,
