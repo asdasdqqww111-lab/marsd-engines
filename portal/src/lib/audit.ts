@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-  import { db } from "@/db";
+import { db } from "@/db";
 import { auditEvent } from "@/db/schema";
 
 /**
@@ -25,10 +25,16 @@ const FORBIDDEN_KEYS = [
   "access_token",
 ];
 
-function sanitizeMetadata(metadata: Record<string, unknown> | undefined) {
+/**
+ * تنقية metadata من المفاتيح الشبيهة بالأسرار.
+ * مُصدَّرة لاختبارها مباشرة (src/lib/__tests__/audit.test.ts).
+ */
+export function sanitizeMetadata(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | null {
   if (!metadata) return null;
   const clean: Record<string, unknown> = {};
-  4 (const [key, value] of Object.entries(metadata)) {
+  for (const [key, value] of Object.entries(metadata)) {
     const lower = key.toLowerCase();
     if (FORBIDDEN_KEYS.some((f) => lower.includes(f))) continue;
     clean[key] = value;
