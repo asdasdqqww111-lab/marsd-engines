@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { checkAppHealth } from "@/lib/health";
 import { HUDHUD_APPS } from "@/lib/registry";
+import { hasPermission, normalizeRole } from "@/lib/rbac";
 import { SignOutButton } from "@/components/SignOutButton";
+import { HealthRefresh } from "@/components/HealthRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +28,23 @@ export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: h });
   if (!session) redirect("/login");
 
+  const portalRole = normalizeRole(
+    (session.user as { portalRole?: string | null }).portalRole,
+  );
+
   const results = await Promise.all(
     HUDHUD_APPS.map(async (app) => {
       const baseUrl = process.env[app.baseUrlEnv];
       return checkAppHealth(app.techId, baseUrl, app.healthPath);
     }),
   );
+
+  const navLinks = [
+    { href: "/", label: "لوحة القيادة", visible: hasPermission(portalRole, "dashboard.view") },
+    { href: "/audit", label: "سجل التدقيق", visible: hasPermission(portalRole, "audit.read") },
+    { href: "/users", label: "المستخدمون", visible: hasPermission(portalRole, "users.manage") },
+    { href: "/settings", label: "الإعدادات", visible: hasPermission(portalRole, "settings.manage") },
+  ].filter((l) => l.visible);
 
   return (
     <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
@@ -42,7 +55,7 @@ export default async function DashboardPage() {
           alignItems: "center",
           justifyContent: "space-between",
           gap: "12px",
-          marginBottom: "24px",
+          marginBottom: "16px",
         }}
       >
         <div>
@@ -60,6 +73,35 @@ export default async function DashboardPage() {
           <SignOutButton />
         </div>
       </header>
+
+      <nav
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px",
+          marginBottom: "24px",
+        }}
+      >
+        {navLinks.map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            style={{
+              color: "var(--hudhud-text-primary)",
+              background: "var(--hudhud-surface-2)",
+              border: "1px solid var(--hudhud-border)",
+              borderRadius: "var(--hudhud-radius-sm)",
+              padding: "6px 14px",
+              fontSize: "0.85rem",
+              textDecoration: "none",
+            }}
+          >
+            {l.label}
+          </a>
+        ))}
+      </nav>
+
+      <HealthRefresh />
 
       <div className="hudhud-surface" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "640px" }}>
