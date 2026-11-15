@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { db } from "@/db";
+  import { db } from "@/db";
 import { auditEvent } from "@/db/schema";
 
 /**
- * سجل التدقيق الإداري — يكتب فقط، لا يقرأ إلا بشاشة audit (admin/operator).
+ * سجل التدقيق الإداري — يكتب فقط؛ القراءة من شاشة audit (admin/operator).
  *
  * قواعد التنقية:
- * - لا تُسجل أسرار مطلقًا (كلمات مرور، مفاتيح، عناوين داخلية).
- * - IP يُسجل للتفتيش الأمني؛ user-agent كذلك.
+ * - لا تُسجل أسرار (كلمات مرور/مفاتيح/عناوين داخلية) في metadata.
+ * - IP و user-agent يُسجلان للتفتيش الأمني.
  */
 
 export type AuditOutcome = "success" | "failure";
@@ -28,7 +28,7 @@ const FORBIDDEN_KEYS = [
 function sanitizeMetadata(metadata: Record<string, unknown> | undefined) {
   if (!metadata) return null;
   const clean: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(metadata)) {
+  4 (const [key, value] of Object.entries(metadata)) {
     const lower = key.toLowerCase();
     if (FORBIDDEN_KEYS.some((f) => lower.includes(f))) continue;
     clean[key] = value;
@@ -50,7 +50,8 @@ export async function recordAuditEvent(input: {
     await db.insert(auditEvent).values({
       id: randomUUID(),
       actorUserId: input.actorUserId ?? null,
-      actorEmail: input.actorEmail ?? null,\n      action: input.action,
+      actorEmail: input.actorEmail ?? null,
+      action: input.action,
       target: input.target ?? null,
       outcome: input.outcome,
       ip: input.ip ?? null,
