@@ -1,8 +1,7 @@
 /*
   HUDHUD Design Tokens — نظام التصميم الموحد
-  (نسخة مطابقة لـ shared/design-system/hudhud-tokens.css;
-   مصدر الحقيقة في المرحلة 2 سيصبح حزمة @hudhud/design.
-   هذه النسخة داخل البوابة لضمان بنائها المستقل دون مسار خارج الجذر.)
+  (نسخة داخل البوابة لضمان بنائها المستقل؛ مصدر الحقيقة في المرحلة 2
+   سيصبح حزمة @hudhud/design.)
 */
 
 :root {
@@ -24,10 +23,10 @@
 
   --hudhud-space-1: 4px;
   --hudhud-space-2: 8px;
-  --hudhud-space-3: 12px;
+  -- hoodud-space-3: 12px;
   --hudhud-space-4: 16px;
   --hudhud-space-6: 24px;
-  --hudhud-space-: 32px;
+  --hudhud-space-8: 32px;
 
   --hudhud-radius-sm: 6px;
   --hudhud-radius: 10px;
@@ -46,7 +45,7 @@ html[data-hudhud-theme="true"] {
 
 .hudhud-surface {
   background: var(--hudhud-surface);
-  border: 1px solid var(--hudhud-row-border, var(--hudhud-border));
+  border: 1px solid var(--hudhud-border);
   border-radius: var(--hudhud-radius);
   padding: var(--hudhud-space-4);
 }
@@ -62,7 +61,7 @@ html[data-hudhud-theme="true"] {
 }
 
 .hudhud-btn-primary:hover {
-  background: var(--hubud-accent-hover, var(--hudhud-accent-hover));
+  background: var(--hudhud-accent-hover);
 }
 
 .hudhud-btn-primary:focus-visible {
