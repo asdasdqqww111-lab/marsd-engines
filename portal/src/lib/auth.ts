@@ -5,9 +5,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 
-/**
- * مصادقة HUDHUD CONTROL الإدارية — hudhud_core فقط。
- */
+// HUDHUD CONTROL admin auth - hudhud_core database only.
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -22,7 +20,7 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    disableSignUp:  true,
+    disableSignUp: true,
     requireEmailVerification: false,
   },
   rateLimit: {
