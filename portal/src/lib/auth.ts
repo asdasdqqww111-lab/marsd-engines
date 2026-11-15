@@ -14,7 +14,7 @@ export const auth = betterAuth({
     provider: "pg",
     schema: {
       ...schema,
-      user: schema
+      user: schema.user,
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
@@ -31,7 +31,7 @@ export const auth = betterAuth({
     max: 20,
   },
   session: {
-    expiresIn: 60 * 60 * 8,
+    expiresIn:  60 * 60 * 8,
     updateAge: 60 * 60,
   },
   plugins: [
