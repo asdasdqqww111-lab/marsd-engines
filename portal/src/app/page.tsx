@@ -7,14 +7,14 @@ import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<string, string> = {
+const L: Record<string, string> = {
   healthy: "يعمل",
   degraded: "يعمل جزئيًا",
   down: "غير متاح",
   unknown: "غير معروف",
 };
 
-const STATUS_COLOR: Record<string, string> = {
+const C: Record<string, string> = {
   healthy: "var(--hudhud-success)",
   degraded: "var(--hudhud-warning)",
   down: "var(--hudhud-danger)",
@@ -49,12 +49,7 @@ export default async function DashboardPage() {
           <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
             هدهد · HUDHUD CONTROL
           </h1>
-          <p
-            style={{
-              margin: "4px 0 0",
-              color: "var(--hudhud-text-secondary)",
-              fontSize: "0.85rem",
-n          }}>
+          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
             لوحة القيادة الموحدة — الحالات أدناه فحص فعلي لحظي
           </p>
         </div>
@@ -78,47 +73,24 @@ n          }}>
             </tr>
           </thead>
           <tbody>
-            {HUDHUD_APPS apps.map((app) => {
+            {HUDHUD_APPS.map((app) => {
               const r = results.find((x) => x.techId === app.techId);
               const status = r?.status ?? "unknown";
               return (
                 <tr key={app.techId} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                   <td style={{ padding: "12px" }}>
                     <strong style={{ color: "var(--hudhud-accent)" }}>{app.brandName}</strong>
-                    <div
-                      style={{
-                        color: "var(--hudhud-text-secondary)",
-                        fontSize: "0.8rem",
-                      }}
-                    >
+                    <div style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem" }}>
                       {app.description}
                     </div>
                   </td>
-                  <td
-                    style={{
-                      padding: "12px",
-                      fontFamily: "var(--hudhud-font-mono)",
-                      fontSize: "0.8rem",
-                    }}
-                  >
+                  <td style={{ padding: "12px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
                     {app.techId}
                   </td>
-                  <td
-                    style={{
-                      padding: "12px",
-                      fontWeight: 600,
-                      color: STATUS_COLOR[status],
-                    }}
-                  >
-                    {STATUS_LABEL[status]}
+                  <td style={{ padding: "12px", fontWeight: 600, color: C[status] }}>
+                    {L[status]}
                     {r?.httpStatus != null ? (
-                      <span
-                        style={{
-                          color: "var(--hudhud-text-secondary)",
-                          fontWeight: 400,
-                          fontSize: "0.8rem",
-                        }}
-                      >
+                      <span style={{ color: "var(--hudhud-text-secondary)", fontWeight: 400, fontSize: "0.8rem" }}>
                         {" "}· HTTP {r.httpStatus}
                       </span>
                     ) : null}
@@ -126,13 +98,7 @@ n          }}>
                   <td style={{ padding: "12px" }}>
                     {r?.latencyMs != null ? `${r.latencyMs} ms` : "—"}
                   </td>
-                  <td
-                    style={{
-                      padding: "12px",
-                      color: "var(--hudhud-text-secondary)",
-                      fontSize: "0.8rem",
-                    }}
-                  >
+                  <td style={{ padding: "12px", color: "var(--hudhud-text-secondary)", fontSize: "0.8rem" }}>
                     {r?.detail}
                   </td>
                 </tr>
@@ -142,15 +108,9 @@ n          }}>
         </table>
       </div>
 
-      <p
-        style={{
-          color: "var(--hudhud-text-secondary)",
-          fontSize: "0.8rem",
-          marginTop: "16px",
-        }}
-      >
-        «غير معروف» تعني أن عنوان التشغيل غير مضبوط عبر متغيرات البيئة — وليس تعطلًا. تعطل البوابة لا يؤثر
-        على استقلالية التطبيقات السبعة؛ التنقل إليها يتم مباشرة دون iframes.
+      <p style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem", marginTop: "16px" }}>
+        «غير معروف» تعني أن عنوان التشغيل غير مضبوط — وليس تعطلًا. تعطل البوابة لا يؤثر على التطبيقات؛
+        التنقل إليها مباشر دون iframes.
       </p>
     </main>
   );
