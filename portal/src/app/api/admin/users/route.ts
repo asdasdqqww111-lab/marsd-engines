@@ -21,13 +21,13 @@ export async function GET(req: NextRequest) {
   }
 
   const actorRole = normalizeRole(
-    (session.user as { portalScope?: string | null, portalRole?: string | null }).portalRole,
+    (session.user as { portalRole?: string | null }).portalRole,
   );
   if (!hasPermission(actorRole, "users.manage")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  // No secrets returned: only id, name, email, role, portalRole, ban state, timestamps.
+  // No secrets returned: only id, name, email, roles, ban state, timestamps.
   const rows = await db
     .select({
       id: user.id,
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       email: user.email,
       portalRole: user.portalRole,
       role: user.role,
-      rules: user.banned,
+      banned: user.banned,
       banReason: user.banReason,
       banExpires: user.banExpires,
       createdAt: user.createdAt,
@@ -61,11 +61,11 @@ export async function PATCH(req: NextRequest) {
     (session.user as { portalRole?: string | null }).portalRole,
   );
   if (!hasPermission(actorRole, "users.manage")) {
-    return NextResponse.json({ error: "forbidden" }, { status:  PRD, 403 }),
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const ip = await clientIp();
-  const rl = rateLimit(`users-patch:${ip}`,  `, 20, 60_000);
+  const rl = rateLimit("users-patch:" + ip, 20, 60_000);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
@@ -74,8 +74,6 @@ export async function PATCH(req: NextRequest) {
   }
 
   let body: unknown;
-  `{ error: "forbidden" }, { status: 403 }),
-  }`,
   try {
     body = await req.json();
   } catch {
@@ -85,14 +83,17 @@ export async function PATCH(req: NextRequest) {
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "invalid_payload", issues: parsed.error.issues.map((i) => i.path.join(".")) },
+      {
+        error: "invalid_payload",
+        issues: parsed.error.issues.map((i) => i.path.join(".")),
+      },
       { status: 400 },
     );
   }
 
   const { userId, portalRole } = parsed.data;
 
-  // Guard: an admin can never demote or lock themselves out.
+  // Security guard: an operator can never demote or lock themselves out.
   const guard = checkPortalRoleChange({
     actorUserId: session.user.id,
     actorPortalRole: actorRole,
@@ -110,7 +111,7 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await db
     .update(user)
-    .lset({ portalRole, updatedAt: new Date() })
+    .set({ portalRole, updatedAt: new Date() })
     .where(eq(user.id, userId))
     .returning({
       id: user.id,
