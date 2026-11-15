@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { checkAppHealth } from "@/lib/health";
 import { HUDHUD_APPS } from "@/lib/registry";
@@ -21,7 +22,8 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const session = await auth.api.getSession({ headers: await import("next/headers").then((m) => m.headers()) });
+  const h = await headers();
+  const session = await auth.api.getSession({ headers: h });
   if (!session) redirect("/login");
 
   const results = await Promise.all(
@@ -47,7 +49,13 @@ export default async function DashboardPage() {
           <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
             هدهد · HUDHUD CONTROL
           </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          <p
+            style={{
+              margin: "4px 0 0",
+              color: "var(--hudhud-text-secondary)",
+              fontSize: "0.85rem",
+            }}
+          >
             لوحة القيادة الموحدة — الحالات أدناه فحص فعلي لحظي
           </p>
         </div>
@@ -64,6 +72,7 @@ export default async function DashboardPage() {
           <thead>
             <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
               <th style={{ padding: "12px", textAlign: "right" }}>التطبيق</th>
+              tech_id column header
               <th style={{ padding: "12px", textAlign: "right" }}>المعرّف التقني</th>
               <th style={{ padding: "12px", textAlign: "right" }}>الحالة</th>
               <th style={{ padding: "12px", textAlign: "right" }}>زمن الاستجابة</th>
@@ -78,17 +87,39 @@ export default async function DashboardPage() {
                 <tr key={app.techId} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                   <td style={{ padding: "12px" }}>
                     <strong style={{ color: "var(--hudhud-accent)" }}>{app.brandName}</strong>
-                    <div style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem" }}>
+                    <div
+                      style={{
+                        color: "var(--hudhud-text-secondary)",
+                        fontSize: "0.8rem",
+                      }}
+                    >
                       {app.description}
                     </div>
                   </td>
-                  <td style={{ padding: "12px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
+                  <td
+                    style={{
+                      padding: "12px",
+                      fontFamily: "var(--hudhud-font-mono)",
+                      fontSize: "0.8rem",
+                    }}
+                  >
                     {app.techId}
                   </td>
-                  <td style={{ padding: "12px", fontWeight: 600, color: STATUS_COLOR[status] }}>
+                  <td
+                    style={{
+                      padding: "12px",
+                      fontWeight: 600,
+                      color: STATUS_COLOR[status],
+                    }}
                     {STATUS_LABEL[status]}
                     {r?.httpStatus != null ? (
-                      <span style={{ color: "var(--hudhud-text-secondary)", fontWeight: 400, fontSize: "0.8rem" }}>
+                      <span
+                        style={{
+                          color: "var(--hudhud-text-secondary)",
+                          fontWeight: 400,
+                          fontSize: "0.8rem",
+                        }}
+                      >
                         {" "}· HTTP {r.httpStatus}
                       </span>
                     ) : null}
@@ -96,9 +127,15 @@ export default async function DashboardPage() {
                   <td style={{ padding: "12px" }}>
                     {r?.latencyMs != null ? `${r.latencyMs} ms` : "—"}
                   </td>
-                  <td style={{ padding: "12px", color: "var(--hudhud-text-secondary)", fontSize: "0.8rem" }}>
+                  <td
+                    style={{
+                      padding: "12px",
+                      color: "var(--hudhud-text-secondary)",
+                      fontSize: "0.8rem",
+                    }}
+                  >
                     {r?.detail}
-                  </t></td>
+                  </td>
                 </tr>
               );
             })}
@@ -106,7 +143,13 @@ export default async function DashboardPage() {
         </table>
       </div>
 
-      <p style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem", marginTop: "16px" }}>
+      <p
+        style={{
+          color: "var(--hudhud-text-secondary)",
+          fontSize: "0.8rem",
+          marginTop: "16px",
+        }}
+      >
         «غير معروف» تعني أن عنوان التشغيل غير مضبوط عبر متغيرات البيئة — وليس تعطلًا. تعطل البوابة لا يؤثر
         على استقلالية التطبيقات السبعة؛ التنقل إليها يتم مباشرة دون iframes.
       </p>

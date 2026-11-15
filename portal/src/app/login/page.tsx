@@ -45,7 +45,14 @@ export default function LoginPage() {
         <h1 style={{ margin: 0, color: "var(--hudhud-accent)", textAlign: "center" }}>
           هدهد · HUDHUD CONTROL
         </h1>
-        <p style={{ margin: 0, color: "var(--hudhud-text-secondary)", textAlign: "center", fontSize: "0.875rem" }}>
+        <p
+          style={{
+            margin: 0,
+            color: "var(--hudhud-text-secondary)",
+            textAlign: "center",
+            fontSize: "0.875rem",
+          }}
+        >
           بوابة الإدارة المركزية — الدخول للمشغلين المصرح لهم فقط
         </p>
         <label style={{ display: "grid", gap: "6px", fontSize: "0.875rem" }}>
@@ -74,7 +81,8 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={{
-              background: "var(--hudhud-surface-2)",\            color: "var(--hudhud-text-primary)",
+              background: "var(--hudhud-surface-2)",
+              color: "var(--hudhud-text-primary)",
               border: "1px solid var(--hudhud-border)",
               borderRadius: "var(--hudhud-radius-sm)",
               padding: "10px 12px",
@@ -82,7 +90,10 @@ export default function LoginPage() {
           />
         </label>
         {error ? (
-          <p role="alert" style={{ color: "var(--hudhud-danger)", margin: 0, fontSize: "0.875rem" }}>
+          <p
+            role="alert"
+            style={{ color: "var(--hudhud-danger)", margin: 0, fontSize: "0.875rem" }}
+          >
             {error}
           </p>
         ) : null}
