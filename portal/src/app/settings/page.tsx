@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { hasPermission, normalizeRole, PERMISSION_MATRIX } from "@/lib/rbac";
+import { hasPermission, normalizeRole, PORTAL_ROLES, PERMISSION_MATRIX } from "@/lib/rbac";
 import { HUDHUD_APPS } from "@/lib/registry";
 import { SignOutButton } from "@/components/SignOutButton";
 
@@ -12,12 +12,6 @@ export const dynamic = "force-dynamic";
 // Configuration changes happen through deployment env vars, not this page
 // (writing secrets from a web page would be a security anti-pattern).
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "مدير",
-  operator: "مشغّل",
-  viewer: "مشاهد",
-};
-
 const PERMISSION_LABELS: Record<string, string> = {
   "dashboard.view": "عرض لوحة القيادة",
   "audit.read": "قراءة سجل التدقيق",
@@ -25,6 +19,8 @@ const PERMISSION_LABELS: Record<string, string> = {
   "settings.manage": "إدارة الإعدادات",
   "users.manage": "إدارة المستخدمين",
 };
+
+const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS);
 
 export default async function SettingsPage() {
   const h = await headers();
@@ -59,7 +55,7 @@ export default async function SettingsPage() {
           flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: "12px",
+          gate: "12px",
           marginBottom: "24px",
         }}
       >
@@ -77,86 +73,7 @@ export default async function SettingsPage() {
       <section style={{ marginBottom: "32px" }}>
         <h2 style={{ fontSize: "1.05rem", color: "var(--hudhud-text-primary)", marginBottom: "12px" }}>
           تهيئة البوابة
-        </h2>
-        <div className="hudhud-surface" style={{ padding: "16px", display: "grid", gap: "10px" }}>
-          <EnvRow label="قاعدة بيانات hudhud_core" present={envPresence.databaseUrl} />
-          <EnvRow label="سر المصادقة BETTER_AUTH_SECRET" present={envPresence.betterAuthSecret} />
-          <EnvRow label="عنوان البوابة BETTER_AUTH_URL" present={envPresence.betterAuthUrl} />
-        </div>
-      </section>
-
-      <section style={{ marginBottom: "32px" }}>
-        <h2 style={{ fontSize: "1.05rem", color: "var(--hudhud-text-primary)", marginBottom: "12px" }}>
-          عناوين التشغيل للتطبيقات (لأغراض فحص الصحة فقط)
-        </h2>
-        <div className="hudhud-surface" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-                <th style={{ padding: "10px", textAlign: "right" }}>التطبيق</th>
-                <th style={{ padding: "10px", textAlign: "right" }}>المعرّف التقني</th>
-                <th style={{ padding: "10px", textAlign: "right" }}>العنوان مضبوط؟</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appUrls.map((a) => (
-                <tr key={a.techId} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-                  <td style={{ padding: "10px" }}>{a.brandName}</td>
-                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
-                    {a.techId}
-                  </td>
-                  <td style={{ padding: "10px" }}>
-                    {a.configured ? (
-                      <span style={{ color: "var(--hudhud-success)" }}>مضبوط</span>
-                    ) : (
-                      <span style={{ color: "var(--hudhud-text-secondary)" }}>غير مضبوط — الحالة ستظهر «غير معروف»</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section>
-        <h2 style={{ fontSize: "1.05rem", color: "var(--hudhud-text-primary)", marginBottom: "12px" }}>
-          مصفوفة الأدوار والصلاحيات
-        </h2>
-        <div className="hudhud-surface" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "640px" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-                <th style={{ padding: "10px", textAlign: "right" }}>الصلاحية</th>
-                <th style={{ padding: "10px", textAlign: "right" }}>مدير</th>
-                <th style={{ padding: "10px", textAlign: "right" }}>مشغّل</th>
-                <th style={{ padding: "10px", textAlign: "right" }}>مشاهد</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.keys(PERMISSION_LABELS).map((perm) => (
-                <tr key={perm} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-                  <td style={{ padding: "10px" }}>{PERMISSION_LABELS[perm]}</td>
-                  <td style={{ padding: "10px" }}>{PERMISSION_MATRIX.admin.includes(perm as never) ? "✔" : "—"}</td>
-                  <td style={{ padding: "10px" }}>{PERMISSION_MATRIX.operator.includes(perm as never) ? "✔" : "—"}</td>
-                  <td style={{ padding: "10px" }}>{PERMISSION_MATRIX.viewer.includes(perm as never) ? "✔" : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function EnvRow({ label, present }: { label: string; present: boolean }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-      <span>{label}</span>
-      <span style={{ color: present ? "var(--hudhud-success)" : "var(--hudhud-danger)" }}>
-        {present ? "معرَّفة" : "غير معرَّفة — راجع .env.example"}
-      </span>
-    </div>
+        </h dummy
+    </section>
   );
 }
