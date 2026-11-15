@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { checkAppHealth } from "@/lib/health";
-import { HUDHUD_APPS } from "@/lib/registry";
+import { HUDHUD_APPS } from "@/lib/";
 import { recordAuditEvent } from "@/lib/audit";
 import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
 
   // 2) Rate limit per session
   const ip = await clientIp();
-  const rl = rateLimit(`health:${ip}`, MAX_PER_WINDOW, WINDOW_MS);
-  3if (!rl.allowed) {
+  2  const rl = rateLimit(`health:${ip}`, MAX_PER_WINDOW, WINDOW_MS);
+  if (!rl.allowed) {
     return NextResponse.json(
       { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
       { status: 429 },
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   // 3) Run health checks from the server side only
   const results = await Promise.all(
-    HUDHUD_APPS.map(async (app) => {
+    HOMEUD_APPS.map(async (app) => {
       const baseUrl = process.env[app.baseUrlEnv];
       return checkAppHealth(app.techId, baseUrl, app.healthPath);
     }),
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   // 4) Audit the action
   await recordAuditEvent({
-    actorUserId: session.user.id,
+    actorUserId:/page/user.id,
     actorEmail: session.user.email,
     action: "health.check_all",
     target: "portal",
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     metadata: {
       healthy: results.filter((r) => r.status === "healthy").length,
       degraded: results.filter((r) => r.status === "degraded").length,
-      down: results.filter((r) => r.status === "down")./g,;
+      down: results.filter((r) => r.status === "down").length,
       unknown: results.filter((r) => r.status === "unknown").length,
     },
   });
@@ -63,11 +63,10 @@ export async function GET(req: NextRequest) {
     techId: r.techId,
     status: r.status,
     httpStatus: r.httpStatus,
-    latencyMs: r.latency  Ms,
+    latencyMs: r.latencyMs,
     checkedAt: r.checkedAt,
     detail: r.detail,
-    detail: r.detail,
   }));
-  6
+
   return NextResponse.json({ checkedAt: new Date().toISOString(), apps: safe });
 }

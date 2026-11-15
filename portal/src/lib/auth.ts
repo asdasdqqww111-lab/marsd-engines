@@ -6,7 +6,7 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 
 /**
- * مصادقة HUDHUD CONTROL الإدارية — hudhud_core فقط.
+ * مصادقة HUDHUD CONTROL الإدارية — hudhud_core فقط。
  */
 
 export const auth = betterAuth({
@@ -22,7 +22,7 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    disableSignUp: true,
+    disableSignUp:  true,
     requireEmailVerification: false,
   },
   rateLimit: {
@@ -31,7 +31,7 @@ export const auth = betterAuth({
     max: 20,
   },
   session: {
-    expiresIn:  60 * 60 * 8,
+    expiresIn: 60 * 60 * 8,
     updateAge: 60 * 60,
   },
   plugins: [
