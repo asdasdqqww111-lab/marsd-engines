@@ -24,4 +24,14 @@ describe("audit metadata sanitization", () => {
   it("returns null for undefined", () => {
     expect(sanitizeMetadata(undefined)).toBeNull();
   });
+
+  it("keeps plain counters used by health snapshots", () => {
+    const out = sanitizeMetadata({
+      healthy: 2,
+      degraded: 1,
+      down: 0,
+      unknown: 4,
+    });
+    expect(out).toEqual({ healthy: 2, degraded: 1, down: 0, unknown: 4 });
+  });
 });

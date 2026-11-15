@@ -16,8 +16,6 @@ import * as schema from "@/db/schema";
  * - rate limiting مدمج لكل IP على مسارات المصادقة.
  */
 
-const ENABLED = process.env.NODE_ENV === "production";
-
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -43,9 +41,7 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 8, // 8 hours
     updateAge: 60 * 60, // refresh every hour
-    // Store IP and user agent for audit purposes
-    storeSessionCookie: true,
-  }, 60,
+  },
   plugins: [
     nextCookies(),
     admin({

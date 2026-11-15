@@ -49,3 +49,27 @@ export function normalizeRole(role: string | null | undefined): PortalRole {
   if (role === "admin" || role === "operator" || role === "viewer") return role;
   return "viewer";
 }
+
+/**
+ * فحص نقدي لتغيير دور مشغّل — دالة نقية قابلة للاختبار المباشر.
+ *
+ * القاعدة الأمنية: لا يجوز لأي مشغّل تخفيض دوره الخاص،
+ * لأن ذلك قد يقفل المستخدم خارج البوابة (تغييرات الإقفال تتطلب مراجعة منفصلة).
+ */
+export interface RoleChangeCheck {
+  allowed: boolean;
+  reason?: "self_demotion_forbidden";
+}
+
+export function checkPortalRoleChange(input: {
+  actorUserId: string;
+  actorPortalRole: PortalRole;
+  targetUserId: string;
+  newRole: PortalRole;
+}): RoleChangeCheck {
+  const isSelf = input.targetUserId === input.actorUserId;
+  if (isSelf && input.newRole !== input.actorPortalRole) {
+    return { allowed: false, reason: "self_demotion_forbidden" };
+  }
+  return { allowed: true };
+}

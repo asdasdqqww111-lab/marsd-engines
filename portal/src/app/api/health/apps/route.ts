@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
 import { checkAppHealth } from "@/lib/health";
 import { HUDHUD_APPS } from "@/lib/registry";
 import { recordAuditEvent } from "@/lib/audit";
 import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
+import { db } from "@/db";
+import { appHealthSnapshot } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
 // Health check for all seven apps. Session-guarded + rate-limited.
+// Results are persisted as append-only snapshots (app_health_snapshot)
+// so history is verifiable from real data, not fabricated.
 // Never returns application URLs to the client.
 
 const MAX_PER_WINDOW = 10;
@@ -35,6 +40,22 @@ export async function GET(req: NextRequest) {
       return checkAppHealth(app.techId, baseUrl, app.healthPath);
     }),
   );
+
+  // Persist snapshots — insert-only by design; failures never block the response.
+  try {
+    await db.insert(appHealthSnapshot).values(
+      results.map((r) => ({
+        id: randomUUID(),
+        techId: r.techId,
+        status: r.status,
+        httpStatus: r.httpStatus,
+        latencyMs: r.latencyMs,
+        detail: r.detail,
+      })),
+    );
+  } catch (err) {
+    console.error("[health] snapshot persistence failed:", err);
+  }
 
   await recordAuditEvent({
     actorUserId: session.user.id,
