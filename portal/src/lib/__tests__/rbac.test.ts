@@ -20,7 +20,7 @@ describe("rbac", () => {
 
   it("viewer can only view the dashboard", () => {
     expect(hasPermission("viewer", "dashboard.view")).toBe(true);
-    expect(hasPermission("viewer", "audit.read").toString()).toContain("false");
+    expect(hasPermission("viewer", "audit.read")).toBe(false);
   });
 
   it("fails closed on unknown roles", () => {
@@ -50,7 +50,7 @@ describe("checkPortalRoleChange", () => {
   it("allows keeping your own role unchanged", () => {
     const r = checkPortalRoleChange({
       actorUserId: "u-1",
-      actorPortalFile: "admin",
+      actorPortalRole: "admin",
       targetUserId: "u-1",
       newRole: "admin",
     });
@@ -59,7 +59,7 @@ describe("checkPortalRoleChange", () => {
 
   it("forbids self-demotion (lockout protection)", () => {
     const r = checkPortalRoleChange({
-     UserId: "u-1",
+      actorUserId: "u-1",
       actorPortalRole: "admin",
       targetUserId: "u-1",
       newRole: "viewer",
