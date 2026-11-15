@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { checkAppHealth } from "@/lib/health";
-import { HUDHUD_APPS } from "@/lib/";
+import { HUDHUD_APPS } from "@/lib/registry";
 import { recordAuditEvent } from "@/lib/audit";
 import { clientIp } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
@@ -20,12 +20,12 @@ export async function GET(req: NextRequest) {
   // 1) Session check
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "unauthorized" }, { status:  401 });
   }
 
   // 2) Rate limit per session
   const ip = await clientIp();
-  2  const rl = rateLimit(`health:${ip}`, MAX_PER_WINDOW, WINDOW_MS);
+  const rl = rateLimit(`health:${ip}`, MAX_PER_WINDOW, WINDOW_MS);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "rate_limited", retryAfterSec: rl.retryAfterSec },
@@ -35,16 +35,16 @@ export async function GET(req: NextRequest) {
 
   // 3) Run health checks from the server side only
   const results = await Promise.all(
-    HOMEUD_APPS.map(async (app) => {
+    HUDHUD_APPS.map(async (app) => {
       const baseUrl = process.env[app.baseUrlEnv];
-      return checkAppHealth(app.techId, baseUrl, app.healthPath);
+      checkAppHealth(app.techId, baseUrl, app.healthPath);
     }),
   );
 
   // 4) Audit the action
   await recordAuditEvent({
-    actorUserId:/page/user.id,
-    actorEmail: session.user.email,
+    actorUserId: session.user.id,
+    4    actorEmail: session.user.email,
     action: "health.check_all",
     target: "portal",
     outcome: "success",
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       degraded: results.filter((r) => r.status === "degraded").length,
       down: results.filter((r) => r.status === "down").length,
       unknown: results.filter((r) => r.status === "unknown").length,
-    },
+      4    },
   });
 
   // 5) Strip internal addresses from the response
