@@ -6,8 +6,6 @@ import { Client } from "pg";
 /**
  * يطبّق ترحيلات hudhud_core من مجلد src/db/migrations بالترتيب.
  * آمن للتنفيذ المتكرر (كل ترحيل idempotent + جدول تتبع داخلي).
- *
- * الاستخدام: npm run db:apply  (يتطلب DATABASE_URL)
  */
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "src", "db", "migrations");
@@ -22,7 +20,6 @@ async function main() {
   await client.connect();
 
   try {
-    // Internal tracking table (separate from Drizzle's journal so both apply paths work)
     await client.query(`
       CREATE TABLE IF NOT EXISTS ${TRACKING_TABLE} (
         filename text PRIMARY KEY,
@@ -38,10 +35,9 @@ async function main() {
     if (files.length === 0) {
       console.log("No migration files found in", MIGRATIONS_DIR);
       return;
-      // eslint-disable-next-line no-unreachable
     }
 
-    for (file of files) {
+    for (const file of files) {
       const res = await client.query(
         `SELECT 1 FROM ${TRACKING_TABLE} WHERE filename = $1`,
         [file],
@@ -78,7 +74,6 @@ async function main() {
   }
 }
 
-let file: string;
 main().catch((err) => {
   console.error(err);
   process.exit(1);

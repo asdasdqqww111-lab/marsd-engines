@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS "session" (
   "id" text PRIMARY KEY,
   "expires_at" timestamptz NOT NULL,
   "token" text NOT NULL UNIQUE,
-  "created_at" timestamtz NOT NULL DEFAULT now(),
- verification   "updated_at" timestamptz NOT NULL DEFAULT now(),
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
   "ip_address" text,
   "user_agent" text,
   "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "account" (
 
 CREATE TABLE IF NOT EXISTS "verification" (
   "id" text PRIMARY KEY,
-  "identifier" tokens  text NOT NULL,
+  "identifier" text NOT NULL,
   "value" text NOT NULL,
   "expires_at" timestamptz NOT NULL,
   "created_at" timestamptz DEFAULT now(),
@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS "verification" (
 -- Audit events
 CREATE TABLE IF NOT EXISTS "audit_event" (
   "id" text PRIMARY KEY,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
   "actor_user_id" text,
   "actor_email" text,
   "action" text NOT NULL,
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS "audit_event" (
 CREATE INDEX IF NOT EXISTS "audit_event_actor_idx" ON "audit_event" ("actor_user_id");
 CREATE INDEX IF NOT EXISTS "audit_event_action_idx" ON "audit_event" ("action");
 CREATE INDEX IF NOT EXISTS "audit_event_target_idx" ON "audit_event" ("target");
+CREATE INDEX IF NOT EXISTS "audit_event_created_idx" ON "audit_event" ("created_at");
 
 -- App health snapshots (no URL column by design)
 CREATE TABLE IF NOT EXISTS "app_health_snapshot" (
@@ -77,12 +79,13 @@ CREATE TABLE IF NOT EXISTS "app_health_snapshot" (
   "tech_id" text NOT NULL,
   "status" text NOT NULL CHECK (status IN ('healthy', 'degraded', 'down', 'unknown')),
   "http_status" integer,
-  "latency_ms" unit integer,
+  "latency_ms" integer,
   "detail" text,
   "checked_at" timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS "app_health_snapshot_tech_idx" ON "app_health_snapshot" ("tech_id");
+CREATE INDEX IF NOT EXISTS "app_health_snapshot_checked_idx" ON "app_health_snapshot" ("checked_at");
 
 -- Role permissions (portal RBAC)
 CREATE TABLE IF NOT EXISTS "role_permission" (
@@ -92,7 +95,6 @@ CREATE TABLE IF NOT EXISTS "role_permission" (
   "description" text,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT "role_permission_unique" UNIQUE ("role", "permission")
-
 );
 
 -- Seed portal roles (idempotent)
@@ -107,6 +109,6 @@ INSERT INTO "role_permission" ("id", "role", "permission", "description") VALUES
 ON CONFLICT ("role", "permission") DO NOTHING;
 
 -- Audit the migration itself
-INSERT INTO "audit_event" ("id", "actor_user_id", "actor_email", "action", "target", "outcome", "metadata")
-VALUES ('audit_migration_0001', NULL, NULL, 'migration.applied', 'hudhud_core', 'success', '{"migration": "0001_init"}'::jsonb)
+INSERT INTO "audit_event" ("id", "action", "target", "outcome", "metadata")
+VALUES ('audit_migration_0001', 'migration.applied', 'hudhud_core', 'success', '{"migration": "0001_init"}'::jsonb)
 ON CONFLICT ("id") DO NOTHING;

@@ -51,7 +51,7 @@ export const session = pgTable("session", {
   userAgent: text("user_agent"),
   userId: text("user_id")
     .notNull()
-    .refers(() => user.id, { onDelete: "cascade" }),
+    .references(() => user.id, { onDelete: "cascade" }),
   impersonatedBy: text("impersonated_by"),
 });
 
@@ -59,7 +59,9 @@ export const account = pgTable("account", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
-  userId: application : text("user_id").notNull().refers(() => user.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   idToken: text("id_token"),
@@ -92,19 +94,20 @@ export const verification = pgTable("verification", {
 
 /**
  * سجل الأحداث الإدارية — من فعل ماذا ومتى ومن أي IP.
- * كل تغيير إداري حساس يُسجل هنا مع تفاصيل قابلة للتفتيش.
  */
 export const auditEvent = pgTable(
   "audit_event",
   {
     id: text("id").primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
     actorUserId: text("actor_user_id"),
     actorEmail: text("actor_email"),
     action: text("action").notNull(),
     /** techId من سجل التطبيقات، أو "portal" للأحداث الداخلية */
     target: text("target"),
     outcome: text("outcome").notNull(), // success | failure
-    /** عنوان الهدف الفعلي — لا يُسجل أبدًا؛ فقط hostname عام لمعاينة الحالة */
     ip: text("ip"),
     userAgent: text("user_agent"),
     /** تفاصيل مُنقّاة من الأسرار (انظر src/lib/audit.ts) */
@@ -119,9 +122,8 @@ export const auditEvent = pgTable(
 );
 
 /**
- * لقطات حالة التطبيقات — تُكتب من فحص الصحة دوريًا/عند الطلب.
- * اللقطة تاريخية: لا تُحدّث بالكتابة فوقها؛ تُدرج جديدة فقط.
- * لاحظ: لا يوجد عمود عنوان URL — لا تُخزن العناوين الداخلية في القاعدة.
+ * لقطات حالة التطبيقات — تُدرج جديدة فقط، لا تحديث بالكتابة فوق.
+ * لا يوجد عمود URL بالتصميم: العناوين الداخلية لا تُخزن في القاعدة.
  */
 export const appHealthSnapshot = pgTable(
   "app_health_snapshot",
@@ -134,7 +136,7 @@ export const appHealthSnapshot = pgTable(
     detail: text("detail"),
     checkedAt: timestamp("checked_at", { withTimezone: true })
       .$defaultFn(() => new Date())
-      .notNull(),
+           .notNull(),
   },
   (t) => [
     index("app_health_snapshot_tech_idx").on(t.techId),
@@ -145,10 +147,8 @@ export const appHealthSnapshot = pgTable(
 /* ── RBAC ─────────────────────────────────────────────── */
 
 /**
- * الأدوار والصلاحيات لكل تطبيق — استلهام من نموذج nchat per-app RBAC
- * (20260212_add_per_app_rbac.sql) لكن مُبسّط لاحتياجات البوابة في المرحلة 1:
- * 3 أدوار ثابتة (admin/operator/viewer) تُطبق عبر src/lib/rbac.ts.
- * المرحلة 4 ستوسع الجداول لتزامن الأدوار مع zexa عبر OIDC.
+ * الأدوار والصلاحيات — استلهام من نموذج nchat per-app RBAC
+ * (20260212_add_per_app_rbac.sql) لكن مُبسّط لاحتياجات البوابة في المرحلة 1.
  */
 export const rolePermission = pgTable(
   "role_permission",
@@ -164,7 +164,7 @@ export const rolePermission = pgTable(
   (t) => [uniqueIndex("role_permission_unique").on(t.role, t.permission)],
 );
 
-/* ── Types ──────────────────── ───────────────────────── */
+/* ── Types ─────────────────────────────────────────────── */
 
 export type User = typeof user.$inferSelect;
 export type AuditEvent = typeof auditEvent.$inferSelect;
