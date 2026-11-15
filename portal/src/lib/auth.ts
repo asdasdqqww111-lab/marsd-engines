@@ -7,12 +7,6 @@ import * as schema from "@/db/schema";
 
 /**
  * مصادقة HUDHUD CONTROL الإدارية — hudhud_core فقط.
- *
- * - التسجيل الذاتي معطّل: المشغل يزرع حساب admin عبر seed (المرحلة 1)
- *   ثم يدير الباقي عبر admin plugin.
- * - لا OAuth في المرحلة 1؛ المرحلة 4 تضيف OIDC عبر zexa.
- * - جلسات 8 ساعات مع تحديث كل ساعة، تسجيل IP/UA للتفتيش.
- * - حد معدل مدمج على مسارات المصادقة (20/دقيقة لكل IP).
  */
 
 export const auth = betterAuth({
@@ -20,7 +14,7 @@ export const auth = betterAuth({
     provider: "pg",
     schema: {
       ...schema,
-      user: schema.user,
+      user: schema
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
@@ -33,7 +27,7 @@ export const auth = betterAuth({
   },
   rateLimit: {
     enabled: true,
-    window:  "60",
+    window: 60,
     max: 20,
   },
   session: {
