@@ -1,0 +1,19 @@
+# Dependencies
+node_modules
+.pnpm
+
+# Next.js
+.next
+out
+
+# Testing
+test-results
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Types
+next-env.d.ts
+*.tsbuildinfo

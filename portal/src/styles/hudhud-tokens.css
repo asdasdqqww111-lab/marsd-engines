@@ -1,0 +1,86 @@
+/*
+  HUDHUD Design Tokens — نظام التصميم الموحد
+  (نسخة مطابقة لـ shared/design-system/hudhud-tokens.css;
+   مصدر الحقيقة في المرحلة 2 سيصبح حزمة @hudhud/design.
+   هذه النسخة داخل البوابة لضمان بنائها المستقل دون مسار خارج الجذر.)
+*/
+
+:root {
+  --hudhud-bg: #0C0E12;
+  --hudhud-surface: #16181D;
+  --hudhud-surface-2: #1C1F26;
+  --hudhud-border: #2A2E37;
+  --hudhud-accent: #F5A623;
+  --hudhud-accent-hover: #FFB63D;
+  --hudhud-text-primary: #EDEEF2;
+  --hudhud-text-secondary: #9BA1AE;
+  --hudhud-success: #3FB950;
+  --hudhud-warning: #F5A623;
+  --hudhud-danger: #F85149;
+  --hudhud-info: #58A6FF;
+
+  --hudhud-font: "IBM Plex Sans Arabic", "IBM Plex Sans", system-ui, sans-serif;
+  --hudhud-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --hudhud-space-1: 4px;
+  --hudhud-space-2: 8px;
+  --hudhud-space-3: 12px;
+  --hudhud-space-4: 16px;
+  --hudhud-space-6: 24px;
+  --hudhud-space-: 32px;
+
+  --hudhud-radius-sm: 6px;
+  --hudhud-radius: 10px;
+  --hudhud-radius-lg: 16px;
+  --hudhud-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+
+  --hudhud-dir: rtl;
+}
+
+html[data-hudhud-theme="true"] {
+  background: var(--hudhud-bg);
+  color: var(--hudhud-text-primary);
+  font-family: var(--hudhud-font);
+  direction: rtl;
+}
+
+.hudhud-surface {
+  background: var(--hudhud-surface);
+  border: 1px solid var(--hudhud-row-border, var(--hudhud-border));
+  border-radius: var(--hudhud-radius);
+  padding: var(--hudhud-space-4);
+}
+
+.hudhud-btn-primary {
+  background: var(--hudhud-accent);
+  color: #0C0E12;
+  border-radius: var(--hudhud-radius-sm);
+  font-weight: 600;
+  padding: var(--hudhud-space-2) var(--hudhud-space-4);
+  border: none;
+  cursor: pointer;
+}
+
+.hudhud-btn-primary:hover {
+  background: var(--hubud-accent-hover, var(--hudhud-accent-hover));
+}
+
+.hudhud-btn-primary:focus-visible {
+  outline: 2px solid var(--hudhud-info);
+  outline-offset: 2px;
+}
+
+.hudhud-status-loading {
+  color: var(--hudhud-info);
+}
+
+.hudhud-status-error {
+  color: var(--hudhud-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hudhud-btn-primary,
+  .hudhud-surface {
+    transition: none;
+  }
+}
