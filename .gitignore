@@ -19,3 +19,8 @@ coverage/
 **/.env
 **/.env.*
 !**/.env.example
+
+# Backup files — never commit database dumps (hudhud_core backups
+# are written to HUDHUD_BACKUP_DIR which must live outside the repo)
+*.dump
+**/*.dump

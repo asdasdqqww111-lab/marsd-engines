@@ -7,12 +7,14 @@ import {
 } from "@/lib/rbac";
 
 describe("rbac", () => {
-  it("admin has all five permissions", () => {
-    expect(PERMISSION_MATRIX.admin).toHaveLength(5);
+  it("admin has all six permissions", () => {
+    expect(PERMISSION_MATRIX.admin).toHaveLength(6);
     expect(hasPermission("admin", "users.manage")).toBe(true);
+    expect(hasPermission("admin", "monitoring.view")).toBe(true);
   });
 
-  it("operator cannot manage settings or users", () => {
+  it("operator can view monitoring but cannot manage settings or users", () => {
+    expect(hasPermission("operator", "monitoring.view")).toBe(true);
     expect(hasPermission("operator", "settings.manage")).toBe(false);
     expect(hasPermission("operator", "users.manage")).toBe(false);
     expect(hasPermission("operator", "health.refresh")).toBe(true);
@@ -21,6 +23,7 @@ describe("rbac", () => {
   it("viewer can only view the dashboard", () => {
     expect(hasPermission("viewer", "dashboard.view")).toBe(true);
     expect(hasPermission("viewer", "audit.read")).toBe(false);
+    expect(hasPermission("viewer", "monitoring.view")).toBe(false);
   });
 
   it("fails closed on unknown roles", () => {

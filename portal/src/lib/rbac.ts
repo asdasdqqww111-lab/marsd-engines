@@ -1,12 +1,13 @@
 /**
- * RBAC للبوابة — 3 أدوار ثابتة في المرحلة 1.
+ * RBAC للبوابة — 3 أدوار ثابتة.
  *
  * الصلاحيات (استلهام نموذج nchat per-app RBAC):
  * - dashboard.view: رؤية لوحة القيادة.
  * - audit.read: قراءة سجل التدقيق.
  * - health.refresh: تشغيل فحص الصحة اليدوي.
- * - settings.manage: إدارة إعدادات البوابة.
+ * - settings.manage: إدارة إعدادات البوابة + صفحة المزودين.
  * - users.manage: إدارة مستخدمي البوابة.
+ * - monitoring.view: عرض المراقبة (تاريخ اللقطات + التنبيهات) — المرحلة 3.
  */
 
 export type PortalRole = "admin" | "operator" | "viewer";
@@ -18,7 +19,8 @@ export type Permission =
   | "audit.read"
   | "health.refresh"
   | "settings.manage"
-  | "users.manage";
+  | "users.manage"
+  | "monitoring.view";
 
 export const PERMISSION_MATRIX: Record<PortalRole, readonly Permission[]> = {
   admin: [
@@ -27,8 +29,9 @@ export const PERMISSION_MATRIX: Record<PortalRole, readonly Permission[]> = {
     "health.refresh",
     "settings.manage",
     "users.manage",
+    "monitoring.view",
   ],
-  operator: ["dashboard.view", "audit.read", "health.refresh"],
+  operator: ["dashboard.view", "audit.read", "health.refresh", "monitoring.view"],
   viewer: ["dashboard.view"],
 };
 
