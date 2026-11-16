@@ -1,12 +1,12 @@
 from flask import Flask, request, render_template, jsonify
 from factcheck.utils.llmclient import CLIENTS
 import argparse
-import json
 
 from factcheck.utils.utils import load_yaml
 from factcheck import FactCheck
 
 from health import health_bp
+from result_store import store_result, load_result
 
 app = Flask(__name__, static_folder="assets")
 
@@ -46,26 +46,68 @@ def index():
         response = request.form["response"]
         if response == "":
             return render_template("input.html")
-        response = factcheck_instance.check_text(response)
 
-        # save the response json file
-        with open("assets/response.json", "w") as f:
-            json.dump(response, f)
+        # HUDHUD fix C-01: the pipeline is still CLI-initialized in __main__.
+        # If an operator started the app without a factcheck instance (or the
+        # LLM/retriever backend is unavailable), report it honestly instead of
+        # crashing or fabricating results.
+        if "factcheck_instance" not in globals():
+            return (
+                render_template(
+                    "input.html",
+                    hudhud_error="تحليل التحقق غير مهيأ حالياً. يجب تشغيل الخادم عبر الواجهة الرئيسية (webapp) مع تهيئة مزود التحليل.",
+                ),
+                503,
+            )
 
-        return render_template("LibrAI_fc.html", responses=response, shown_claim=0)
+        try:
+            result = factcheck_instance.check_text(response)
+        except Exception as exc:  # LLM/retriever outage, quota, timeout...
+            app.logger.error("FactCheck pipeline failure: %s", exc)
+            return (
+                render_template(
+                    "input.html",
+                    hudhud_error="تعذر إجراء التحليل الآن — مزود الذكاء الاصطناعي أو مصادر الاسترجاع غير متاحة. لم يتم توليد أي نتيجة.",
+                ),
+                503,
+            )
+
+        # HUDHUD fix C-01: store isolated per-request result and redirect to
+        # its stable URL (id is opaque, unique, and never derived from content).
+        result_id = store_result(result)
+
+        from flask import redirect, url_for
+
+        return redirect(url_for("get_content", content_id=result_id, _external=False))
 
     return render_template("input.html")
 
 
 @app.route("/shownClaim/<content_id>")
 def get_content(content_id):
-    # load the response json file
-    import json
+    # HUDHUD fix C-01: load from the isolated store instead of a shared file.
+    # Invalid or unknown IDs render a clear error — no cross-request leakage.
+    response = load_result(content_id)
+    if response is None:
+        return (
+            render_template(
+                "input.html",
+                hudhud_error="نتيجة التحقق غير موجودة أو منتهية. أدخل النص مرة أخرى لبدء فحص جديد.",
+            ),
+            404,
+        )
 
-    with open("assets/response.json") as f:
-        response = json.load(f)
+    shown_index = 0
+    claim_detail = response.get("claim_detail", [])
+    if isinstance(claim_detail, list) and claim_detail:
+        try:
+            shown_index = max(0, min(int(content_id_shown_override or 0), len(claim_detail) - 1))
+        except Exception:
+            shown_index = 0
 
-    return render_template("LibrAI_fc.html", responses=response, shown_claim=(int(content_id) - 1))
+    return render_template(
+        "LibrAI_fc.html", responses=response, shown_claim=shown_index
+    )
 
 
 if __name__ == "__main__":
@@ -79,7 +121,7 @@ if __name__ == "__main__":
     parser.add_argument("--api_config", type=str, default="factcheck/config/api_config.yaml")
     args = parser.parse_args()
 
-    # Load API config from yaml file
+    # Load API config from yaml
     try:
         api_config = load_yaml(args.api_config)
     except Exception as e:
