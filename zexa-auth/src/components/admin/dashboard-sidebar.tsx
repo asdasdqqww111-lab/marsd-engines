@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Users, Settings, LogOut, GalleryVerticalEnd, LayoutDashboard } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { HUDHUD_DICT, t } from "@/lib/hudhud-dictionary";
 
 import {
   Sidebar,
@@ -19,20 +20,21 @@ import {
 } from "@/components/ui/sidebar";
 
 /**
- * HUDHUD M-02 — navigation now covers the full admin panel:
- * /admin (real overview), /admin/users, /admin/settings (real config states).
- * The previous sidebar linked to /admin/settings before the route existed.
+ * HUDHUD D-03 — الشريط الجانبي معرب من القاموس الموحد (ar افتراضي).
+ * التنقل كما هو (Dashboard/Users/Settings) — النصوص فقط من القاموس.
  */
+const d = HUDHUD_DICT;
+
 const sidebarNavItems = [
   {
     href: "/admin",
     icon: LayoutDashboard,
-    label: "Dashboard",
+    label: t(d.admin.dashboard),
   },
   {
     href: "/admin/users",
     icon: Users,
-    label: "Users",
+    label: t(d.admin.users),
   },
 ];
 
@@ -61,7 +63,7 @@ export function DashboardSidebar() {
                   <GalleryVerticalEnd className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">Admin Panel</span>
+                  <span className="font-semibold">{t(d.admin.panel)}</span>
                   <span className="">v1.0.0</span>
                 </div>
               </a>
@@ -95,22 +97,22 @@ export function DashboardSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Settings">
+            <SidebarMenuButton asChild tooltip={t(d.admin.settings)}>
               <Link href="/admin/settings">
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <span>{t(d.admin.settings)}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              tooltip="Logout"
+              tooltip={t(d.auth.logout)}
               className="cursor-pointer"
             >
               <button onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
-                <span>Logout</span>
+                <span>{t(d.auth.logout)}</span>
               </button>
             </SidebarMenuButton>
           </SidebarMenuItem>

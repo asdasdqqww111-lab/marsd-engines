@@ -1,22 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIBRAI Fact-Checking App</title>
-    <!-- <link rel="stylesheet" type="text/css" href="styles.css"> -->
+    <!-- HUDHUD D-04: القالب معرب بهوية هدهد — العقد محفوظ: نفس مسار POST / ونفس معرفات الحقول -->
+    <title>هدهد للتحقق | HUDHUD Verify</title>
     <style>
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
             margin: 0;
             padding: 0;
-            /* display: flex; */
             flex-direction: column;
             justify-content: space-between;
             align-items: baseline;
             height: 100vh;
-            /* background: #f4f4f4; */
             background: #fff;
         }
 
@@ -30,23 +28,22 @@
             border: #e5e5e5 solid 2px;
         }
 
-        header img {
-            margin-left: 50px;
-            width: 130px;
+        header .brand {
+            margin-right: 50px;
+            margin-left: auto;
+            font-size: 18px;
+            font-weight: 700;
+            color: #4871b7;
         }
 
         .fact-check {
-            /* display: flex; */
             padding: 5% 0;
             width: 90%;
-            /* justify-content: space-between; */
             align-items: center;
-            /* border-top: 2px solid #ccc; */
-            /* padding-top: 10%; */
         }
 
         .fact-check label {
-            margin-left: 10%;
+            margin-right: 10%;
             font-size: 20px;
         }
 
@@ -54,14 +51,15 @@
             margin: 20px 0;
             width: 90%;
             height: 100%;
-            margin-left: 10%;
+            margin-right: 10%;
             border-radius: 10px;
             font-size: 15px;
             border-color: #a9bee3;
+            font-family: inherit;
         }
 
         .fact-check button {
-            margin-left: 80%;
+            margin-right: 80%;
             width: 20%;
             padding: 10px 20px;
             background-color: #4871b7;
@@ -87,7 +85,7 @@
         }
 
         #timer {
-            margin-left: 80%;
+            margin-right: 80%;
             width: 18%;
             padding: 10px 20px;
             border: none;
@@ -96,25 +94,19 @@
     </style>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script>
-        $(document).ready(function(){
-            $('#Button').click(function(event){
-                // Prevent the default form submission momentarily
-                // event.preventDefault();
-                
-                // Submit the form
+        $(document).ready(function () {
+            $('#Button').click(function (event) {
+                // Submit the form — نفس عقد الأصل
                 $(this).closest('form').submit();
-
-                // Disable the button
                 $(this).prop('disabled', true);
 
-                 // Start an elapsed time timer
+                // مؤقت الزمن المنقضي — عربي
                 var timeElapsed = 0;
-                $('#timer').text('Time elapsed: ' + timeElapsed + ' seconds');
-                var timerId = setInterval(function(){
+                $('#timer').text('الزمن المنقضي: ' + timeElapsed + ' ثانية');
+                var timerId = setInterval(function () {
                     timeElapsed++;
-                    $('#timer').text('Time elapsed: ' + timeElapsed + ' seconds');
+                    $('#timer').text('الزمن المنقضي: ' + timeElapsed + ' ثانية');
                 }, 1000);
-
             });
         });
     </script>
@@ -122,25 +114,22 @@
 
 <body>
     <header>
-        <a href="https://www.librai.tech">
-            <!-- <img alt="LibrAI Logo" src="https://aip.librai.tech/assets/logo_with_text.9bc473c7.png" alt="LibrAI Logo"
-                width="200px"> -->
-            <img alt="LibrAI Logo" src="assets/librai_librai.png" alt="LibrAI Logo" width="200px">
-        </a>
+        <!-- HUDHUD D-04: هوية هدهد تحل محل علامة LibrAI الأجنبية -->
+        <div class="brand">هدهد للتحقق · HUDHUD Verify</div>
     </header>
 
     <main class="fact-check">
         <form method="post" action="/">
-            <label for="response">Please enter the model's response:</label><br>
+            <label for="response">أدخل النص أو الادعاء للتحقق منه:</label><br>
             <textarea id="response" name="response" rows="4" cols="50"
-                placeholder="Enter fact to check..."></textarea><br>
-            <button id="Button" type="submit">Submit</button>
+                placeholder="أدخل ما تريد التحقق منه..."></textarea><br>
+            <button id="Button" type="submit">تحقق الآن</button>
         </form>
         <p id="timer"></p>
     </main>
 
     <footer>
-        <p>&copy; LibrAI. All rights reserved</p>
+        <p>منظومة هدهد للتحقق — HUDHUD Verify</p>
     </footer>
 </body>
 
