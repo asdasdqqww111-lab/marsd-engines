@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "../styles/hudhud-tokens.css";
+import "../styles/hudhud-shell.css";
+import { PortalShell } from "@/components/PortalShell";
 
 export const metadata: Metadata = {
   title: "HUDHUD CONTROL",
@@ -10,7 +12,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl" data-hudhud-theme="true">
-      <body>{children}</body>
+      <body>
+        <PortalShell>{children}</PortalShell>
+      </body>
     </html>
   );
 }

@@ -1,0 +1,307 @@
+/*
+  HUDHUD Shell — القشرة البصرية الموحدة (الهوية البصرية المرحلة 2)
+  كل الأنماط مستمدة من hudhud-tokens.css فقط — لا ألوان مجددة هنا أبدًا.
+  RTL أصيل، استجابة هواتف، a11y (focus-visible + reduced-motion).
+*/
+
+.hudhud-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--hudhud-bg);
+}
+
+/* ── الشريط الجانبي ─────────────────────────────── */
+
+.hudhud-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--hudhud-surface);
+  border-inline-start: 1px solid var(--hudhud-border);
+  padding: var(--hudhud-space-6) var(--hudhud-space-4);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.hudhud-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--hudhud-space-3);
+  margin-bottom: var(--hudhud-space-8);
+}
+
+.hudhud-brand-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--hudhud-accent), #d98b0d);
+  color: var(--hudhud-bg);
+  font-weight: 700;
+  font-size: 1rem;
+  border-radius: var(--hudhud-radius-lg);
+  box-shadow: var(--hudhud-shadow);
+}
+
+.hudhud-brand-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.hudhud-brand-sub {
+  color: var(--hudhud-text-secondary);
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.hudhud-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hudhud-space-1);
+}
+
+.hudhud-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--hudhud-space-3);
+  padding: var(--hudhud-space-2) var(--hudhud-space-3);
+  border-radius: var(--hudhud-radius);
+  color: var(--hudhud-text-secondary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.hudhud-nav-item:hover {
+  background: var(--hudhud-surface-2);
+  color: var(--hudhud-text-primary);
+}
+
+.hudhud-nav-item.active {
+  background: var(--hudhud-surface-2);
+  color: var(--hudhud-accent);
+  border-color: var(--hudhud-border);
+  font-weight: 600;
+}
+
+.hudhud-nav-item:focus-visible {
+  outline: 2px solid var(--hudhud-info);
+  outline-offset: 2px;
+}
+
+.hudhud-nav-icon {
+  width: 22px;
+  text-align: center;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.hudhud-sidebar-foot {
+  margin-top: auto;
+  color: var(--hudhud-text-secondary);
+  font-size: 0.7rem;
+}
+
+/* ── العمود الرئيسي ─────────────────────────────── */
+
+.hudhud-main-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hudhud-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hudhud-space-3);
+  padding: var(--hudhud-space-3) var(--hudhud-space-6);
+  background: color-mix(in srgb, var(--hudhud-surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-block-end: 1px solid var(--hudhud-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.hudhud-topbar-title {
+  color: var(--hudhud-accent);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.hudhud-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hudhud-space-3);
+}
+
+.hudhud-clock {
+  color: var(--hudhud-text-secondary);
+  font-size: 0.85rem;
+  font-family: var(--hudhud-font-mono);
+}
+
+.hudhud-main {
+  flex: 1;
+  padding: var(--hudhud-space-6);
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.hudhud-footer {
+  padding: var(--hudhud-space-4) var(--hudhud-space-6);
+  color: var(--hudhud-text-secondary);
+  font-size: 0.75rem;
+  border-block-start: 1px solid var(--hudhud-border);
+}
+
+/* ── ترويسة الصفحة ──────────────────────────────── */
+
+.hudhud-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hudhud-space-3);
+  margin-bottom: var(--hudhud-space-6);
+}
+
+.hudhud-page-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--hudhud-text-primary);
+}
+
+.hudhud-page-sub {
+  margin: 4px 0 0;
+  color: var(--hudhud-text-secondary);
+  font-size: 0.85rem;
+}
+
+.hudhud-note {
+  color: var(--hudhud-text-secondary);
+  font-size: 0.8rem;
+  margin-top: var(--hudhud-space-4);
+}
+
+/* ── بطاقات KPI (مؤشرات من مصدر حقيقي فقط) ─────── */
+
+.hudhud-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--hudhud-space-3);
+  margin-bottom: var(--hudhud-space-6);
+}
+
+.hudhud-kpi {
+  background: var(--hudhud-surface);
+  border: 1px solid var(--hudhud-border);
+  border-radius: var(--hudhud-radius);
+  padding: var(--hudhud-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hudhud-space-1);
+}
+
+.hudhud-kpi-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-family: var(--hudhud-font-mono);
+  color: var(--hudhud-text-primary);
+}
+
+.hudhud-kpi-label {
+  color: var(--hudhud-text-secondary);
+  font-size: 0.8rem;
+}
+
+.hudhud-ok {
+  color: var(--hudhud-success);
+}
+
+.hudhud-warn {
+  color: var(--hudhud-warning);
+}
+
+.hudhud-bad {
+  color: var(--hudhud-danger);
+}
+
+/* ── استجابة الهواتف: الشريط الجانبي يصبح سفليًا ── */
+
+@media (max-width: 768px) {
+  .hudhud-shell {
+    flex-direction: column;
+  }
+
+  .hudhud-sidebar {
+    order: 3;
+    width: 100%;
+    height: auto;
+    position: sticky;
+    bottom: 0;
+    top: auto;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--hudhud-border);
+    padding: var(--hudhud-space-2) var(--hudhud-space-3);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .hudhud-brand {
+    display: none; /* الهوية تظهر في الشريط العلوي على الهاتف */
+  }
+
+  .hudhud-nav {
+    flex-direction: row;
+    justify-content: space-around;
+    overflow-x: auto;
+    gap: var(--hudhud-space-2);
+  }
+
+  .hudhud-nav-item {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.7rem;
+    padding: var(--hudhud-space-1) var(--hudhud-space-2);
+    white-space: nowrap;
+  }
+
+  .hudhud-nav-icon {
+    width: auto;
+    font-size: 1.05rem;
+  }
+
+  .hudhud-sidebar-foot {
+    display: none;
+  }
+
+  .hudhud-topbar {
+    position: static;
+  }
+
+  .hudhud-main {
+    padding: var(--hudhud-space-4);
+  }
+
+  .hudhud-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── احترام تقليل الحركة ─────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .hudhud-nav-item {
+    transition: none;
+  }
+}
