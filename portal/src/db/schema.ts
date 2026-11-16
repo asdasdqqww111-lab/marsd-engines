@@ -136,7 +136,7 @@ export const appHealthSnapshot = pgTable(
     detail: text("detail"),
     checkedAt: timestamp("checked_at", { withTimezone: true })
       .$defaultFn(() => new Date())
-           .notNull(),
+      .notNull(),
   },
   (t) => [
     index("app_health_snapshot_tech_idx").on(t.techId),
@@ -164,8 +164,74 @@ export const rolePermission = pgTable(
   (t) => [uniqueIndex("role_permission_unique").on(t.role, t.permission)],
 );
 
+/* ── Monitoring (المرحلة 3) ──────────────────────────── */
+
+/**
+ * سجل النسخ الاحتياطي — كل نتيجة فعلية لـ pg_dump تُسجّل هنا.
+ * لا يُدّعى نجاح نسخة لم تُنفّذ: المسار يعيد "unknown" حين لا توجد سجلات.
+ */
+export const backupRecord = pgTable(
+  "backup_record",
+  {
+    id: text("id").primaryKey(),
+    /** قاعدة البيانات التي نُسّحت (hudhud_core فقط في المرحلة 3) */
+    databaseName: text("database_name").notNull(),
+    /** triggered | scheduled */
+    trigger: text("trigger").notNull(),
+    /** success | failure */
+    outcome: text("outcome").notNull(),
+    /** عدد الجداول المكتوبة في الملف (عند النجاح) */
+    tablesCount: integer("tables_count"),
+    /** حجم الملف بالبايت (عند النجاح) */
+    sizeBytes: integer("size_bytes"),
+    /** اسم الملف الظاهر فقط (بدون مسارات داخلية) */
+    fileName: text("file_name"),
+    /** خطأ مختصر عند الفشل (بلا أسرار) */
+    errorDetail: text("error_detail"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("backup_record_db_idx").on(t.databaseName),
+    index("backup_record_created_idx").on(t.createdAt),
+  ],
+);
+
+/**
+ * سجل عمليات الاستعادة — استعادة hudhud_core من ملف نسخة احتياطية.
+ * كل عملية تُوثق مع النتيجة الفعلية؛ الاستعادة الهادّامة تتطلب موافقة صريحة.
+ */
+export const restoreRecord = pgTable(
+  "restore_record",
+  {
+    id: text("id").primaryKey(),
+    databaseName: text("database_name").notNull(),
+    /** اسم ملف النسخة الاحتياطية المستخدم (بدون مسار) */
+    backupFileName: text("backup_file_name").notNull(),
+    /** success | failure | dry_run */
+    outcome: text("outcome").notNull(),
+    errorDetail: text("error_detail"),
+    actorUserId: text("actor_user_id"),
+    actorEmail: text("actor_email"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("restore_record_db_idx").on(t.databaseName),
+    index("restore_record_created_idx").on(t.createdAt),
+  ],
+);
+
 /* ── Types ─────────────────────────────────────────────── */
 
 export type User = typeof user.$inferSelect;
 export type AuditEvent = typeof auditEvent.$inferSelect;
 export type AppHealthSnapshot = typeof appHealthSnapshot.$inferSelect;
+export type BackupRecord = typeof backupRecord.$inferSelect;
+export type RestoreRecord = typeof restoreRecord.$inferSelect;
