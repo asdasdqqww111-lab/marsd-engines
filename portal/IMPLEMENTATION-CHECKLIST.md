@@ -3,12 +3,13 @@
 | المرحلة | الحالة | الدليل |
 |---|---|---|
 | تدقيق أولي | مكتمل | تقرير المحادثة 2026-11-15 + قراءة الملفات الفعلية |
-| 1 — أساس البوابة + نظام التصميم | **جارٍ (هذا PR)** | `portal/` + `shared/design-system/` |
-| 2 — صفحات البوابة وAPIs | مخطط | — |
-| 3 — الهوية على التطبيقات السبعة | مخطط | — |
-| 4 — PostgreSQL HA وقواعد `hudhud_*` | مخطط | — |
-| 5 — تقييم الهوية المركزية (Zexa) | مخطط | — |
-| 6 — CI واختبارات وفحص أسرار | مخطط | — |
+| 1 — أساس البوابة + نظام التصميم | مكتمل (PR #1 مدموج) | `portal/` + `shared/design-system/` |
+| 2 — صفحات البوابة وAPIs الأساسية | مكتمل (PR #3 مدموج) | users/settings/audit/health APIs |
+| 3 — CONTROL الكامل (مراقبة + نسخ + مزودون) | مكتمل (فرع feature/hudhud-control-phase3 — بانتظار مراجعة) | monitoring/backup/providers pages + APIs + migration 0002 |
+| 4 — PostgreSQL HA وقواعد `hudhud_*` | مخطط — يتطلب بنية إنتاج فعلية | docs/ARCHITECTURE |
+| 5 — الهوية على التطبيقات السبعة (zexa) | مخطط — يتطلب تشغيل zexa في إنتاج وOIDC config | docs/ARCHITECTURE |
+| 6 — CI واختبارات وفحص أسرار | محظور — نطاق workflow غير متوفر في توكن GitHub | محتوى CI جاهز في docs/HUDHUD-CONTROL-PHASE3 |
+| 7 — مراجعة قبول staging | مخطط — بعد دمج المرحلة 3 وتفعيل CI | — |
 
 ## قواعد ثابتة
 
