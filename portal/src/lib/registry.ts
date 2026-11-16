@@ -25,13 +25,17 @@ export interface HudhudApp {
  * سجل التطبيقات الرسمي — مصدر واحد للحقيقة للبوابة.
  * الأسماء التقنية والمجلدات كما هي في المستودع دون تغيير.
  *
- * مسارات الصحة مُتحقق منها من شيفرة كل تطبيق (2026-11-16):
- * - osiris-map: /api/health موجود (osiris-map/src/app/api/health/route.ts).
- * - neureed: /api/health موجود (neureed/app/api/health/route.ts).
- * - nchat: /api/health موجود (nchat/frontend/src/app/api/health/route.ts).
- * - umami: /api/heartbeat موجود (docker-compose healthcheck يستخدمه).
- * - loki-verify / zexa-auth / rhex-forum: لا مسار صحة مخصص في الشيفرة —
- *   الجذر "/" يُستخدم كفحص حياة صادق (liveness) لا صحة تطبيق (health).
+ * مسارات الصحة مُتحقق منها من شيفرة كل تطبيق (تحديث 2026-11-16):
+ * - osiris-map: /api/health (osiris-map/src/app/api/health/route.ts).
+ * - neureed: /api/health (neureed/app/api/health/route.ts).
+ * - nchat: /api/health (nchat/frontend/src/app/api/health/route.ts).
+ * - umami: /api/heartbeat (docker-compose healthcheck).
+ * - loki-verify: /api/health — أُضيف بعقد HUDHUD
+ *   (loki-verify/health.py + تسجيل blueprint في webapp.py).
+ * - zexa-auth: /api/health — أُضيف بعقد HUDHUD
+ *   (zexa-auth/src/app/api/health/route.ts). يجب إبقاؤه عامًا في proxy.ts.
+ * - rhex-forum: /api/health — أُضيف بعقد HUDHUD
+ *   (rhex-forum/src/app/api/health/route.ts).
  */
 export const HUDHUD_APPS: HudhudApp[] = [
   {
@@ -57,18 +61,18 @@ export const HUDHUD_APPS: HudhudApp[] = [
     techId: "loki-verify",
     description: "التحقق من الأخبار وإدارة الأدلة",
     baseUrlEnv: "HUDHUD_APP_VERIFY_URL",
-    healthPath: "/",
+    healthPath: "/api/health",
     usesPostgres: false,
-    healthPathSource: "root-liveness",
+    healthPathSource: "verified-source",
   },
   {
     brandName: "HUDHUD Identity",
     techId: "zexa-auth",
     description: "المصادقة وإدارة الحسابات والأدوار",
     baseUrlEnv: "HUDHUD_APP_IDENTITY_URL",
-    healthPath: "/",
+    healthPath: "/api/health",
     usesPostgres: true,
-    healthPathSource: "root-liveness",
+    healthPathSource: "verified-source",
   },
   {
     brandName: "HUDHUD Connect",
@@ -84,9 +88,9 @@ export const HUDHUD_APPS: HudhudApp[] = [
     techId: "rhex-forum",
     description: "المنتديات والنقاشات المجتمعية",
     baseUrlEnv: "HUDHUD_APP_COMMUNITY_URL",
-    healthPath: "/",
+    healthPath: "/api/health",
     usesPostgres: true,
-    healthPathSource: "root-liveness",
+    healthPathSource: "verified-source",
   },
   {
     brandName: "HUDHUD Analytics",

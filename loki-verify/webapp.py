@@ -6,7 +6,12 @@ import json
 from factcheck.utils.utils import load_yaml
 from factcheck import FactCheck
 
+from health import health_bp
+
 app = Flask(__name__, static_folder="assets")
+
+# HUDHUD health contract — registered unconditionally, before any CLI-only setup.
+app.register_blueprint(health_bp)
 
 
 # Define the custom filter
