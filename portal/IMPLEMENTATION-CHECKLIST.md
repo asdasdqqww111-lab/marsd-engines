@@ -5,11 +5,13 @@
 | تدقيق أولي | مكتمل | تقرير المحادثة 2026-11-15 + قراءة الملفات الفعلية |
 | 1 — أساس البوابة + نظام التصميم | مكتمل (PR #1 مدموج) | `portal/` + `shared/design-system/` |
 | 2 — صفحات البوابة وAPIs الأساسية | مكتمل (PR #3 مدموج) | users/settings/audit/health APIs |
-| 3 — CONTROL الكامل (مراقبة + نسخ + مزودون + تدقيق محسّن) | مكتمل (PR #4 — بانتظار موافقة الدمج) | monitoring/backup/providers pages + APIs + migration 0002 + سكربتات backup/restore |
-| 4 — PostgreSQL HA وقواعد `hudhud_*` | مخطط — يتطلب بنية إنتاج فعلية وقرار موارد | docs/HUDHUD-PRODUCTION-READINESS |
-| 5 — تقييم الهوية المركزية (zexa) | مكتمل (تقييم) في docs/HUDHUD-IDENTITY-EVALUATION-2026-11-16.md — التفعيل يتطلب عمل OIDC في zexa نفسه + موافقات إنتاج | التقييم: ليس IdP بعد؛ المسار اختياري دون SSO إلزامي |
-| 6 — CI واختبارات وفحص أسرار | محظور — نطاق workflow غير متوفر في توكن GitHub | محتوى CI جاهز في docs/HUDHUD-CONTROL-PHASE3-2026-11-16.md |
-| 7 — مراجعة قبول staging | مخطط — بعد دمج PR #4 وتشغيل الاختبارات الفعلية | docs/HUDHUD-PRODUCTION-READINESS (قائمة فحص القبول) |
+| 3 — CONTROL الكامل (مراقبة + نسخ + مزودون + تدقيق محسّن) | مكتمل (PR #4 مدموج) | monitoring/backup/providers pages + APIs + migration 0002 + سكربتات backup/restore |
+| تصميم — الهوية الموحدة (قشرة + كل الشاشات + دخول) | مكتمل (PR #9 + PR #10 مدموجان) | PortalShell + hudhud-shell.css + hudhud-components.css + كل الشاشات على فئات موحدة |
+| 4 — التقوية الأمنية والرصد | منفَّذ على فرع (PR #11) — فحوص فعلية NOT RUN | security-audit.ts + backup عبر بيئة العملية الفرعية + /api/monitoring/history |
+| 5 — PostgreSQL HA وقواعد `hudhud_*` | مخطط — يتطلب بنية إنتاج فعلية وقرار موارد | docs/HUDHUD-PRODUCTION-READINESS |
+| 6 — تقييم الهوية المركزية (zexa) | مكتمل (تقييم) في docs/HUDHUD-IDENTITY-EVALUATION-2026-11-16.md — التفعيل يتطلب عمل OIDC في zexa نفسه + موافقات إنتاج | التقييم: ليس IdP بعد؛ المسار اختياري دون SSO إلزامي |
+| 7 — CI واختبارات وفحص أسرار | BLOCKED — نطاق workflow غير متوفر في توكن GitHub (محاولة ثانية فشلت 2026-11-16) | محتوى CI جاهز في docs/HUDHUD-CONTROL-PHASE3 + فحص أسرار محلي بديل قابل للتشغيل (`npm run security:audit`) |
+| 8 — مراجعة قبول staging | مخطط — قائمة فحص جاهزة، تتطلب بيئة staging فعلية | docs/HUDHUD-PRODUCTION-READINESS (قائمة فحص القبول) |
 
 ## قواعد ثابتة
 
@@ -17,3 +19,8 @@
 - يُمنع دمج قواعد بيانات التطبيقات أو وصول تطبيق لقاعدة تطبيق آخر.
 - لا PASS إلا بدليل تنفيذ فعلي؛ استخدام UNKNOWN عند تعذر التحقق.
 - عمليات الترحيل الهدّامة وتغييرات الإنتاج تتطلب موافقة صريحة مع خطة أمان موثقة.
+
+## فجوات التحقق الحالية (صادقة)
+
+- كل أوامر الفحص (typecheck/lint/test/build/security:audit) **لم تُشغَّل فعليًا** — لا بيئة تنفيذ للوكيل ولا CI شغّال. المشغل يشغلها ويوثق النتائج.
+- فحوصات الصحة تعرض «غير معروف» حتى ضبط عناوين HUDHUD_APP_*_URL في بيئة التشغيل.
