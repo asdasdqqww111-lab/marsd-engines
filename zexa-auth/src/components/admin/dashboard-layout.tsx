@@ -19,8 +19,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { DashboardSidebar } from "@/components/admin/dashboard-sidebar";
+import { ControlReturnLinkSlot } from "@/components/control-return-link";
 
-const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
+/**
+ * HUDHUD M-04 — the back-to-CONTROL link renders as a client-safe slot.
+ * The URL is read server-side (in ControlReturnLinkSlot via a children
+ * render from layout) and never travels through client props.
+ */
+const DashboardLayout = ({
+  children,
+  controlReturnSlot,
+}: {
+  children: React.ReactNode;
+  controlReturnSlot?: React.ReactNode;
+}) => {
   const pathname = usePathname();
   const pathSegments = pathname.split("/").filter((segment) => segment);
 
@@ -68,6 +80,11 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
               </BreadcrumbList>
             </Breadcrumb>
           </div>
+          {controlReturnSlot != null ? (
+            <div className="mr-4 ms-auto flex items-center">
+              {controlReturnSlot}
+            </div>
+          ) : null}
         </header>
         {children}
       </SidebarInset>
