@@ -14,9 +14,9 @@ import sys
 #   * No secrets or provider key values are ever exposed — presence only.
 #
 # Mapping to HUDHUD portal states:
-#   status=ok + readiness.all -> HEALTHY
-#   status=ok + readiness.some -> DEGRADED (pipeline up, providers missing)
-#   status=down               -> UNAVAILABLE
+#   status=ok + readiness=ready     -> HEALTHY
+#   status=ok + readiness=degraded  -> DEGRADED (pipeline up, providers missing)
+#   status=down                     -> UNAVAILABLE
 
 health_bp = Blueprint("hudhud_health", __name__)
 
@@ -28,13 +28,8 @@ def _pipeline_ready() -> bool:
 
 
 def _provider_config_present() -> bool:
-    """Presence-only check: does the configured api_config hold any provider key?
-    Values are never read out — only key presence is reported."""
-    try:
-        from factcheck.utils.utils import load_yaml
-        from factcheck.utils.api_config import _get_config_path if False else None  # noqa
-    except Exception:
-        pass
+    """Presence-only check: does the configured api_config hold any provider value?
+    Values are never returned — only their non-empty presence is reported."""
     try:
         import os
         cfg_path = os.environ.get(
@@ -44,10 +39,13 @@ def _provider_config_present() -> bool:
             return False
         from factcheck.utils.utils import load_yaml
         cfg = load_yaml(cfg_path) or {}
+        if not isinstance(cfg, dict):
+            return False
         # A configured provider = at least one non-empty value in the config map.
         return any(
-            isinstance(v, str) and v.strip() != "" for v in cfg.values()
-        ) if isinstance(cfg, dict) else False
+            isinstance(v, str) and v.strip() != ""
+            for v in cfg.values()
+        )
     except Exception:
         return False
 
@@ -57,8 +55,12 @@ def health():
     pipeline_ready = _pipeline_ready()
     provider_present = _provider_config_present()
 
-    readiness_ok = pipeline_ready and provider_present
-    readiness_degraded = pipeline_ready and not provider_present
+    if pipeline_ready and provider_present:
+        level = "ready"
+    elif pipeline_ready:
+        level = "degraded"
+    else:
+        level = "not_ready"
 
     return jsonify(
         {
@@ -68,15 +70,11 @@ def health():
             "readiness": {
                 "pipeline_initialized": pipeline_ready,
                 "provider_config_present": provider_present,
-                "level": (
-                    "ready" if readiness_ok
-                    else "degraded" if readiness_degraded
-                    else "not_ready"
-                ),
+                "level": level,
             },
             "detail": (
                 "liveness ok; pipeline ready"
-                if readiness_ok
+                if level == "ready"
                 else "liveness ok; pipeline not ready — init missing or provider config absent"
             ),
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
