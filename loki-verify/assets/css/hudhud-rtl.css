@@ -1,0 +1,53 @@
+/* HUDHUD D-04 — تعريب طبقة الهوية في قالب النتائج.
+ *
+ * قاعدة صارمة (عقد C-01): بنية القالب الأصلي LibrAI_fc.html — كل Jinja
+ * loops وBootstrap pills وswitchClaim JS — تبقى كما هي دون أي تعديل.
+ * هذا الملف لا يستبدل القالب؛ إنه ورقة أنماط تحسينية اختيارية تعمل فوقه:
+ * - تعريب اتجاه عناوين الأعمدة والبطاقات (RTL) دون كسر شبكة Bootstrap
+ *   الأصلية (لذا لا نلمس vendor.css إطلاقًا).
+ * - ضبط خط عربي للهوية.
+ *
+ * يُحمَّل بعد factcheck.css في القالب فيربح الورقة الأحدث دون كسر الأصل.
+ */
+
+/* الهوية العربية */
+body {
+    font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+/* عناوين البطاقات — عربية دون لمس حجم أو موضع العناصر */
+.card-header h6 {
+    direction: rtl;
+    text-align: right;
+}
+
+/* شريط التنقل — عربي */
+.breadcrumb {
+    direction: rtl;
+}
+
+.breadcrumb-item a {
+    color: inherit;
+}
+
+/* نصوص الادعاءات — عربية الاتجاه */
+.fs-4 {
+    direction: rtl;
+}
+
+/* الأدلة — اتجاه عربي */
+.nav-pills {
+    direction: rtl;
+}
+
+.nav-pills .nav-link {
+    direction: rtl;
+}
+
+/* نصوص الأدلة داخل التبويبات — عربي */
+#pills-refutes,
+#pills-support,
+#pills-controversial {
+    direction: rtl;
+    text-align: right;
+}
