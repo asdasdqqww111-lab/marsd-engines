@@ -14,8 +14,8 @@
 | المستودع | `asdasdqqww111-lab/marsd-engines` (خاص) | فحص 2026-11-16 |
 | الفرع الافتراضي | `master` | getRepo |
 | رأس master | `164127cb` — "Merge pull request #8 … OIDC provider" | resolveRef |
-| إجمالي الفروع | 18 فرعًا (فروع عمل المراحل B وC وD) | listBranches |
-| Pull Requests | 11 مدموجة (PR #12 و#13 مفتوحان) | listPullRequests |
+| إجمالي الفروع | 19 فرعًا (فروع عمل المراحل B وC وD وE) | listBranches |
+| Pull Requests | 11 مدموجة (#12/#13/#14 مفتوحة) | listPullRequests |
 | Tags / Releases | 0 / 0 | listTags, listReleases |
 | GitHub Actions | **صفر تشغيلات** — مجلد `.github` غير موجود على master | listWorkflowRuns, getContents |
 | ملف CI جاهز غير مفعّل | `ci/ci.yml` موجود بجذر المستودع (portal: typecheck+lint+test+build, gitleaks) | getContents |
@@ -41,17 +41,18 @@
 |---|---|---|
 | `master` | — | رأس العمل |
 | 11 فرع feature/audit مدموجة عبر PRs #1–#11 | مدموجة | تُترك كما هي (لا حذف) |
-| `feature/hudhud-ci-activate` | خلف بـ 18، أمامه 0 | فرع قديم خالٍ — يوثَّق فقط |
-| `feature/hudhud-production-readiness` | خلف بـ 22، أمامه 0 | فرع قديم خالٍ |
-| `feature/hudhud-cicd` | خلف بـ 31، أمامه 0 | فرع قديم خالٍ |
-| `feature/hudhud-portal` | خلف بـ 108، أمامه 0 | فرع قديم خالٍ |
-| `feature/hudhud-completion-baseline` | المرحلتان A وB كاملتان | PR #12 مفتوح للمراجعة، لا دمج دون موافقة |
+| `feature/hudhud-ci-activate` | فرع قديم خالٍ | يوثَّق فقط |
+| `feature/hudhud-production-readiness` | فرع قديم خالٍ | يوثَّق فقط |
+| `feature/hudhud-cicd` | فرع قديم خالٍ | يوثَّق فقط |
+| `feature/hudhud-portal` | فرع قديم خالٍ | يوثَّق فقط |
+| `feature/hudhud-completion-baseline` | المرحلتان A وB كاملتان | PR #12 مفتوح، لا دمج دون موافقة |
 | `feature/hudhud-integration-phase-c` | المرحلة C كاملة (متفرع من B) | PR #13 مفتوح (قاعدته فرع B) |
-| `feature/hudhud-i18n-phase-d` | **فرع العمل الحالي** — المرحلة D (متفرع من C) | تعريب zexa + قاموس موحد + قوالب loki عربية RTL |
+| `feature/hudhud-i18n-phase-d` | المرحلة D كاملة (متفرع من C) | PR #14 مفتوح (قاعدته فرع C) |
+| `feature/hudhud-ai-phase-e` | **فرع العمل الحالي** — المرحلة E (متفرع من D) | AI ENGINE: سجل مزودين + سياسة مفاتيح + شاشة بوابة |
 
 ## 4. عقود الصحة
 
-| التطبيق | المسار | الدليل | الحالة بعد المرحلة C |
+| التطبيق | المسار | الدليل | الحالة |
 |---|---|---|---|
 | osiris-map | `/api/health` | src/app/api/health/route.ts | liveness فقط (بدون ادعاء جاهزية) |
 | neureed | `/api/health` | app/api/health/route.ts | يفحص DB + pgvector فعليًا — أصدق العقود |
@@ -66,106 +67,89 @@
 
 الحالة: `OPEN` / `IN_PROGRESS` / `FIXED_UNVERIFIED` / `FIXED_VERIFIED` / `NEEDS_APPROVAL` / `BLOCKED`
 
-> ملاحظة المنهجية: كل إصلاحات المراحل B وC وD كُتبت بالكود على فروع عمل دون دمج، ولم تُشغَّل فعليًا (لا بيئة تنفيذ) — حالتها `FIXED_UNVERIFIED` حتى إثباتها بتشغيل الاختبارات في staging/CI (المرحلة G). لا نستخدم "PASS" بلا دليل تشغيل.
+> ملاحظة المنهجية: كل إصلاحات المراحل B–E كُتبت بالكود على فروع عمل دون دمج، ولم تُشغَّل فعليًا (لا بيئة تنفيذ) — حالتها `FIXED_UNVERIFIED` حتى إثباتها بتشغيل الاختبارات في staging/CI (المرحلة G). لا نستخدم "PASS" بلا دليل تشغيل.
 
 | ID | التطبيق | الخطورة | المشكلة | الحل المنفّذ | الملفات المتأثرة | الحالة |
 |---|---|---|---|---|---|---|
-| C-01 | loki-verify | CRITICAL | تخزين نتائج الفحص في ملف مشترك `assets/response.json` — آخر فحص يستبدل غيره + سباق كتابة | `result_store.py` جديد: تخزين معزول بمعرف فريد uuid4 لكل عملية + SQLite (WAL) أو memory للاختبار + حصص استبقاء 30 يومًا + تحقق صارم من شكل المعرف. `webapp.py`: مسار POST يخزن معزولًا ويعرض النتيجة عبر كوكي خاص بالمتصفح (قالب النتائج الأصلي دون أي تعديل) + رسائل فشل صادقة 503 عند غياب مزود AI دون اختلاق نتائج | result_store.py، webapp.py | FIXED_UNVERIFIED |
-| C-02 | zexa-auth | CRITICAL | مسار `/api/admin/users` لا يتحقق من الجلسة/الدور داخليًا (اعتماد كلي على حماية الواجهة) + إرجاع 500 مضلل عند فشل الصلاحية | فحص جلسة صريح في المسار: مجهول→401، غير admin→403 (fail-closed من الخادم) + حدود إدخال (limit≤100) | src/app/api/admin/users/route.ts | FIXED_UNVERIFIED |
-| C-03 | المنظومة | CRITICAL | لا بيئة تشغيل/CI — كل الفحوص NOT RUN | عائق توكن GitHub (نطاق workflow) — يتطلب من المشغّل تفعيل نطاق التوكن أو إضافة `.github/workflows` من واجهة GitHub | .github/workflows (من ci/ci.yml الجاهز) | BLOCKED (توكن) |
-| H-01 | المنظومة | HIGH | `HUDHUD_APP_*_URL` غير مضبوطة → حالات "غير معروف" ولا فتح تطبيقات من البوابة | **المرحلة C (منجز):** نظام عناوين مركزي `portal/src/lib/app-urls.ts` — HUDHUD_ENV يحدد البيئة (dev/staging/production)، لكل تطبيق نمط نطاق موثق يُعرض للمشغّل في الإعدادات (نص وصفي فقط، لا عناوين حقيقية)، القيم الفعلية من HUDHUD_APP_*_URL حصرًا، لا افتراضات عامة + اختبارات + HUDHUD_ENV في .env.example | portal/src/lib/app-urls.ts، __tests__/app-urls.test.ts، app/settings/page.tsx، portal/.env.example | FIXED_UNVERIFIED |
-| H-02 | المنظومة | HIGH | لا SSO/هوية مركزية موثقة | **المرحلة C (تقييم):** وثيقة IDENTITY-OIDC-LOKI-AUDIT.md — تدقيق OIDC الفعلي من الشيفرة (plugin opt-in + عملاء من البيئة + JWKS + جداول H-04) + قائمة تحقق staging قبل أي تفعيل + نقطة موافقة منفصلة | docs/production-readiness/IDENTITY-OIDC-LOKI-AUDIT.md | NEEDS APPROVAL (تقييم مكتمل) |
-| H-03 | loki-verify | HIGH | بلا مصادقة/حدود معدل — أي زائر يستهلك LLM المدفوع | **المرحلة C (تقييم):** ثلاثة خيارات معمارية موثقة (OIDC عبر zexa موصى به / قفل شبكي / مصادقة مستقلة) + نقطة موافقة قبل تعديل شيفرة loki | docs/production-readiness/IDENTITY-OIDC-LOKI-AUDIT.md | NEEDS APPROVAL (تقييم مكتمل) |
-| H-04 | zexa-auth | HIGH | جداول OIDC غائبة كليًا عن الترحيلات رغم تفعيل PR #8 — تفعيل OIDC سينهار عند أول authorize | ترحيل `0002_oidc_provider_tables.sql` (CREATE فقط، غير مدمّر) بثلاثة جداول مطابقة لِ better-auth@1.6.11 + تحديث schema.ts + تسجيل journal. **فجوة توثيق:** 0002_snapshot.json يُولَّد بـ drizzle-kit محليًا (db:generate) | drizzle/0002، meta/_journal.json، src/db/schema.ts | FIXED_UNVERIFIED |
-| H-05 | المنظومة | HIGH | تعريب غائب (واجهات Loki إنجليزية بعلامة LibrAI؛ zexa/umami إنجليزية) | **المرحلة D (منجز جزئيًا — zexa وloki):** (1) قاموس موحد ثنائي اللغة `hudhud-dictionary.ts` — عربي افتراضي، اتجاه مشتق من اللغة، لا مفاتيح ناقصة + اختبارات (2) zexa-auth معرب كاملًا: تخطيط جذري ar/RTL + خط IBM Plex Sans Arabic + شاشة الدخول والنموذج والشريط الجانبي وزر العودة من القاموس (البنية والوظائف دون تعديل) (3) loki-verify: قالب input.html معرب RTL بهوية هدهد (عقد POST والحقول محفوظ) + ورقة RTL تحسينية لقالب النتائج دون لمس بنية القالب الأصلي (عقد C-01) — **بقية التطبيقات (neureed/nchat/rhex/umami) وجرد بقية شاشات zexa تدريجيًا** | zexa-auth/src/lib/hudhud-dictionary.ts + __tests__، app/layout.tsx، auth/login/page.tsx، components/auth/login-form.tsx، components/admin/dashboard-sidebar.tsx، components/control-return-link.tsx، loki-verify/templates/input.html، loki-verify/assets/css/hudhud-rtl.css | PARTIAL (zexa وloki منجزان؛ بقية التطبيقات تدريجيًا) |
-| H-06 | nchat | HIGH | شاشات تجريبية مكشوفة للإنتاج: `/demo`, `/search-demo`, `/test-env` (`/dev` محمي سابقًا) | توسيع `DEV_ONLY_ROUTES` في middleware.ts لتشمل الثلاثة — **الشاشات محفوظة** وتعمل في dev/E2E وتُحجب في production فقط | nchat/frontend/src/middleware.ts | FIXED_UNVERIFIED |
-| H-07 | المنظومة | HIGH | قواعد `hudhud_*` المعزولة غير منفذة | يتطلب بنية إنتاج (موارد) — نقطة موافقة في المرحلة G | إعدادات DB | NEEDS APPROVAL |
-| M-01 | rhex-forum | MEDIUM | ازدواج lockfiles (npm + pnpm) | pnpm رسمي (packageManager + Dockerfile --frozen-lockfile)؛ `package-lock.json` القديم أُضيف إلى .gitignore — **لم يُحذف الملف** | rhex-forum/.gitignore | FIXED_UNVERIFIED |
-| M-02 | zexa-auth | MEDIUM | لوحة إدارة شبه فارغة (تحويل فقط) + رابط sidebar إلى مسار غير موجود (`/admin/settings` كان 404) | `/admin` لوحة overview حقيقية (عدادات من PostgreSQL الفعلي — فشل القراءة يظهر "Error" بصدق) + `/admin/settings` شاشة إعدادات حقيقية (OIDC/social/بريد/جلسات — حالات فقط لا أسرار) + `/api/admin/settings` fail-closed (401/403) + تغطية sidebar كاملة | src/app/admin/page.tsx، admin/settings/page.tsx، api/admin/settings/route.ts، lib/auth.ts، dashboard-sidebar.tsx | FIXED_UNVERIFIED |
-| M-03 | loki-verify | MEDIUM | عقد صحة يرد "ok" دائمًا دون فحص تبعيات | health.py: liveness + readiness.level (ready/degraded/not_ready) — حضور فقط، لا أسرار | loki-verify/health.py | FIXED_UNVERIFIED |
-| M-04 | المنظومة | MEDIUM | لا زر عودة موحد للتطبيقات إلى CONTROL | **المرحلة C (منجز في zexa كنموذج مرجعي):** مكوّن خادمي `ControlReturnLink` يقرأ `HUDHUD_CONTROL_URL` — مخفي كليًا عند غياب المتغير + دمج بنمط slot خادمي + توثيق. **المرحلة D:** الزر معرب من القاموس مع سهم RTL-aware. تعميمه على بقية التطبيقات تدريجيًا | zexa-auth/src/components/control-return-link.tsx، admin/layout.tsx، dashboard-layout.tsx، .env.example | PARTIAL (zexa منجز، بقية التطبيقات تدريجيًا) |
-| M-06 | osiris-map | MEDIUM | `/cutout` معزولة من التنقل — لا عودة إلى الخريطة عند وجود bbox صالح | ترويسة عائمة دائمة برابط "Open the map" — إضافة في page.tsx فقط، CutoutView دون تعديل | osiris-map/src/app/cutout/page.tsx | FIXED_UNVERIFIED |
-| M-08 | المنظومة | MEDIUM | حالات الصحة الخماسية غير منفذة | **المرحلة C (منجز):** AppStatus خماسي (healthy/degraded/starting/down/unknown) + health.ts يستهلك readiness.level الفعلي (loki: ready→healthy، degraded→degraded، not_ready→starting) + لوحة القيادة 5 KPIs + اللقطات والتدقيق الخمسة (عمود نص حر — لا ترحيل) + إصلاح تعارض registry.test.ts (كان يتحقق من 4 والسجل فيه 7) | portal/src/lib/registry.ts، health.ts، app/page.tsx، api/health/apps/route.ts، __tests__/registry.test.ts | FIXED_UNVERIFIED |
-| L-01 | osiris-map | LOW | مجلدات scratch/runs في الشجرة | مراجعة gitignore — مرحلة لاحقة | .gitignore | OPEN |
-| L-02 | المنظومة | LOW | لا Tags/Releases | خطة إصدارات عند الجاهزية (مرحلة G) | — | OPEN |
-| L-03 | المنظومة | LOW | أربعة فروع قديمة خالية | موثقة في §3 — لا حذف دون موافقة | — | OPEN |
+| C-01 | loki-verify | CRITICAL | تخزين نتائج الفحص في ملف مشترك + سباق كتابة | `result_store.py`: تخزين معزول uuid4 + SQLite (WAL) + استبقاء 30 يومًا + كوكي لكل متصفح + رسائل 503 صادقة | result_store.py، webapp.py | FIXED_UNVERIFIED |
+| C-02 | zexa-auth | CRITICAL | مسار admin بلا فحص جلسة/دور داخلي + 500 مضلل | فحص جلسة صريح: 401/403 fail-closed + حدود إدخال | src/app/api/admin/users/route.ts | FIXED_UNVERIFIED |
+| C-03 | المنظومة | CRITICAL | لا بيئة تشغيل/CI | توكن GitHub بلا نطاق workflow — يتطلب تدخل المشغّل | .github/workflows | BLOCKED (توكن) |
+| **E-01** | المنظومة | HIGH | لا سجل مركزي لمزودي AI ولا سياسة مزودين | **المرحلة E:** `portal/src/lib/ai-providers.ts` — سجل من جرد فعلي (loki: OpenAI/Anthropic/local+Serper؛ nchat: OpenAI/Anthropic مع fallback محلي موجود أصلًا؛ البقية بلا LLM) + حظر Meta موثق (صفر حضور أكده الجرد) + `isProviderAllowed` + شاشة `/providers/ai` + اختبارات | portal/src/lib/ai-providers.ts، app/providers/ai/page.tsx، __tests__/ai-providers.test.ts | FIXED_UNVERIFIED |
+| **E-02** | nchat | **CRITICAL (أمني)** | 6 ملفات lib/ai تسمح بقراءة مفاتيح AI من `NEXT_PUBLIC_OPENAI/ANTHROPIC_API_KEY` في المتصفح — كشف مفتاح مدفوع في حزمة JS إن ضُبط | **المرحلة E (جزئي):** `key-policy.ts` — مرجع جلب مفاتيح خادمي فقط (المتصفح undefined دائمًا) + قائمة محظورات NEXT_PUBLIC + اختبارات سياسة. **المتبقي:** إزالة فروع NEXT_PUBLIC من الملفات الستة تتطلب بيئة سحب/تشغيل (الملفات 15-18KB — التعديل عبر API من محتوى مقطوع مخاطرة كسر) | nchat/frontend/src/lib/ai/key-policy.ts، __tests__/key-policy.test.ts | PARTIAL → الترقيع الداخلي BLOCKED (C-03) |
+| H-01 | المنظومة | HIGH | HUDHUD_APP_*_URL غير مضبوطة | **المرحلة C:** نظام عناوين مركزي app-urls.ts + HUDHUD_ENV + قوالب موثقة + اختبارات + شاشة إعدادات | portal/src/lib/app-urls.ts + شاشة الإعدادات | FIXED_UNVERIFIED |
+| H-02 | المنظومة | HIGH | لا SSO موثق | **المرحلة C:** تدقيق OIDC كامل + قائمة تحقق staging + نقطة موافقة منفصلة | IDENTITY-OIDC-LOKI-AUDIT.md | NEEDS APPROVAL (تقييم مكتمل) |
+| H-03 | loki-verify | HIGH | بلا مصادقة/حدود معدل — استهلاك LLM مجاني لأي زائر | **المرحلة C:** 3 خيارات معمارية موثقة (OIDC عبر zexa موصى به) + نقطة موافقة | IDENTITY-OIDC-LOKI-AUDIT.md | NEEDS APPROVAL (تقييم مكتمل) |
+| H-04 | zexa-auth | HIGH | جداول OIDC غائبة عن الترحيلات | ترحيل 0002 CREATE-only + schema.ts + journal. 0002_snapshot.json يُولَّد محليًا | drizzle/0002، schema.ts | FIXED_UNVERIFIED |
+| H-05 | المنظومة | HIGH | تعريب غائب | **المرحلة D:** قاموس موحد ثنائي + zexa عربية RTL كاملة (جذر/دخول/إدارة/زر CONTROL) + قالبا loki عربيان بهوية هدهد + ورقة RTL لقالب النتائج. **بقية التطبيقات وشاشات zexa المتبقية تدريجيًا** | hudhud-dictionary.ts + الشاشات المذكورة | PARTIAL (تعميم تدريجي) |
+| H-06 | nchat | HIGH | شاشات تجريبية مكشوفة للإنتاج | DEV_ONLY_ROUTES موسعة (demo/search-demo/test-env) — الشاشات محفوظة تعمل في dev فقط | nchat/frontend/src/middleware.ts | FIXED_UNVERIFIED |
+| H-07 | المنظومة | HIGH | قواعد hudhud_* المعزولة غير منفذة | يتطلب موارد إنتاج — نقطة موافقة في المرحلة G | إعدادات DB | NEEDS APPROVAL |
+| M-01 | rhex-forum | MEDIUM | ازدواج lockfiles | pnpm رسمي؛ npm lock في .gitignore دون حذف | rhex-forum/.gitignore | FIXED_UNVERIFIED |
+| M-02 | zexa-auth | MEDIUM | لوحة إدارة شبه فارغة | overview حقيقي + settings حقيقية + API fail-closed + sidebar كامل | admin pages + api | FIXED_UNVERIFIED |
+| M-03 | loki-verify | MEDIUM | عقد صحة غير صادق | readiness.level ready/degraded/not_ready | health.py | FIXED_UNVERIFIED |
+| M-04 | المنظومة | MEDIUM | لا زر عودة موحد إلى CONTROL | **المرحلة C:** ControlReturnLink خادمي env-driven في zexa (معرب في D بسهم RTL)؛ تعميم تدريجي | control-return-link.tsx + layouts | PARTIAL |
+| M-06 | osiris-map | MEDIUM | /cutout بلا عودة للخريطة | ترويسة عائمة برابط عودة — إضافة فقط | cutout/page.tsx | FIXED_UNVERIFIED |
+| M-08 | المنظومة | MEDIUM | حالات خماسية غير منفذة | **المرحلة C:** AppStatus خماسي + استهلاك readiness الفعلي + 5 KPIs + إصلاح تعارض registry.test.ts (كان يتحقق من 4 والسجل فيه 7) | portal lib + dashboard + api | FIXED_UNVERIFIED |
+| L-01 | osiris-map | LOW | مجلدات scratch/runs | مراجعة gitignore — مرحلة لاحقة | .gitignore | OPEN |
+| L-02 | المنظومة | LOW | لا Tags/Releases | خطة إصدارات عند الجاهزية (G) | — | OPEN |
+| L-03 | المنظومة | LOW | فروع قديمة خالية | موثقة — لا حذف دون موافقة | — | OPEN |
 
-## 6. إعادة تحقق من تقرير الاستكشاف السابق
+## 6. إعادة تحقق من تقارير سابقة
 
-| ما ورد سابقًا | نتيجة إعادة التحقق |
+| ما ورد | النتيجة |
 |---|---|
-| "صفحة /admin في zexa شبه فارغة" | كانت تحويلًا؛ الآن لوحة overview حقيقية، والمسار كان بلا حماية داخلية (C-02) + إدارة OIDC غائبة من القاعدة (H-04) |
-| "CI محجوب بسبب نطاق التوكن" | مؤكد — 0 تشغيلات وci/ci.yml جاهز غير مفعّل |
-| "قواعد hudhud_* مخططة فقط" | مؤكد |
-| "Loki بلا DB ومشكلة ملف مشترك" | مؤكد وأُصلح معماريًا (C-01) |
-| "شاشات nChat التجريبية" | مؤكد وأُصلح بحرس بيئة (H-06)؛ `/dev` كان محميًا أصلًا |
-| "لا SSO" | مؤكد مع دقة جديدة: OIDC موجود ككود لكن **كان سيؤدي لانهيار تشغيلي** لغياب الجداول — أُصلح (H-04) |
-| "عقود صحة للسبعة" | مؤكدة؛ Loki صادق readiness (M-03) والبوابة تستهلك العقد فعليًا الآن (M-08) |
-| **المرحلة C:** تعارض registry.test.ts | الاختبار تحقق من 4 عقود فقط بينما السجل يحوي 7 — كان سيفشل؛ أُصلح |
-| **المرحلة D:** عقد قالب نتائج loki | webapp.py يقدم `LibrAI_fc.html` بمنطق تبديل ادعاءات مربوط بـ `/shownClaim/` — لذا بقي القالب الأصلي دون تعديل (عقد C-01) والتعريب عبر ورقة أنماط خارجية `hudhud-rtl.css` جاهزة للدمج بموافقة |
+| "صفحة /admin شبه فارغة" | أُصلحت (M-02) + الثغرة C-02 |
+| "CI محجوب" | مؤكد (C-03) — 0 تشغيلات |
+| "قواعد hudhud_* مخططة" | مؤكد (H-07) |
+| "Loki بلا DB" | أُصلح (C-01) |
+| "شاشات nChat التجريبية" | أُصلحت (H-06) |
+| "لا SSO" | مؤكد + H-04 أصلح خطر الانهيار؛ OIDC جاهز كودًا بانتظار موافقة |
+| "عقود صحة السبعة" | Loki صادق (M-03) والبوابة تستهلك العقد (M-08) |
+| تعارض registry.test.ts (C) | أُصلح |
+| عقد قالب نتائج loki (D) | القالب بقي دون تعديل (عقد C-01)؛ ورقة RTL جاهزة بموافقة |
+| **جديد (E): مسار مفاتيح المتصفح** | 6 ملفات nchat تسمح بـ NEXT_PUBLIC_* لمفاتيح AI — اكتشاف جسري؛ السياسة والمرجع الخادمي منفذان، الترقيع الداخلي BLOCKED على بيئة تشغيل |
 
 ## 7. خطة التنفيذ المرحلية (A→G)
 
-### المرحلة A — تثبيت الأساس ✅ مكتملة
-- [x] إعادة تحقق كاملة (فروع/PRs/commits/Actions/اعتماديات/ترحيلات)
-- [x] BASELINE.md + مصفوفة المشكلات
-- [x] فرع العمل `feature/hudhud-completion-baseline`
+### المرحلة A ✅ + المرحلة B ✅ (كود — FIXED_UNVERIFIED)
+كما في الإصدارات السابقة (C-01/C-02/M-01/M-02/M-03/M-06/H-04/H-06).
 
-### المرحلة B — إصلاح التطبيقات ✅ منجزة ككود (كلها FIXED_UNVERIFIED حتى التشغيل)
-- [x] C-02 إغلاق ثغرة الوصول في zexa-admin
-- [x] C-01 تخزين معزول لنتائج Loki + فشل صادق
-- [x] M-03 عقد صحة صادق لـ Loki
-- [x] H-06 حرس بيئة لشاشات nChat التجريبية (دون حذف)
-- [x] M-01 حسم pnpm لـ rhex-forum (دون حذف ملف)
-- [x] H-04 ترحيل + schema جداول OIDC في zexa
-- [x] M-02 استكمال لوحة إدارة zexa (overview حقيقي + settings حقيقية + API محمي)
-- [x] M-06 رابط عودة دائم إلى الخريطة في /cutout (إضافة فقط)
-- [ ] فحوص تشغيلية لكل ما أعلاه عند توفر بيئة (تُسجل بصدق NOT RUN حتى ذلك الحين)
+### المرحلة C ✅ (كود وتقييم — FIXED_UNVERIFIED)
+H-01 عناوين مركزية · M-04 زر CONTROL (zexa) · M-08 حالات خماسية · H-02/H-03 تدقيق OIDC/Loki (لا تفعيل).
 
-### المرحلة C — التكامل ✅ منجزة ككود وتقييم (كلها FIXED_UNVERIFIED حتى التشغيل)
-- [x] H-01 نظام عناوين مركزي (app-urls.ts + HUDHUD_ENV + قوالب موثقة + اختبارات + شاشة إعدادات)
-- [x] M-04 زر عودة إلى CONTROL (نموذج مرجعي في zexa — env-driven، مخفي عند غياب المتغير؛ تعميم تدريجي لاحق)
-- [x] M-08 حالات خماسية في البوابة + استهلاك عقود readiness الفعلية + إصلاح تعارض اختبار السجل
-- [x] H-02/H-03 وثيقة تدقيق OIDC ومصادقة Loki — تقييم كامل، **لا تفعيل SSO** (نقطة موافقة منفصلة)
-- [ ] تعميم ControlReturnLink على بقية التطبيقات (تدريجي، كل تطبيق إضافة فقط)
-- [ ] فحوص تشغيلية عند توفر بيئة
+### المرحلة D ✅ (كود — FIXED_UNVERIFIED)
+D-01 قاموس موحد · D-02 جذر zexa ar/RTL + IBM Plex Sans Arabic · D-03 شاشات zexa معربة · D-04 قالبا loki عربيان (+ورقة RTL جاهزة بموافقة). التعميم على بقية التطبيقات تدريجي.
 
-### المرحلة D — الهوية والتعريب ✅ منجزة ككود (zexa وloki) — FIXED_UNVERIFIED حتى التشغيل
-- [x] D-01 قاموس موحد ثنائي اللغة `hudhud-dictionary.ts` (عربي افتراضي، اتجاه مشتق، بنية مدقق ثابتة) + اختبارات
-- [x] D-02 تخطيط zexa الجذري: lang=ar dir=rtl + خط IBM Plex Sans Arabic (مع Inter — تعايش لا استبدال) + هوية HUDHUD في العنوان
-- [x] D-03 شاشات zexa معربة من القاموس: الدخول + نموذج الدخول + الشريط الجانبي + زر CONTROL (البنية والوظائف دون تعديل، حقول البريد/كلمة المرور LTR-safe)
-- [x] D-04 قالب إدخال loki معرب RTL بهوية هدهد (عقد POST والحقول محفوظ) + ورقة `hudhud-rtl.css` لقالب النتائج (جاهزة للدمج بموافقة — القالب الأصلي محفوظ بعقد C-01)
-- [ ] تعريب بقية التطبيقات (neureed/nchat/rhex-forum/umami) تدريجيًا
-- [ ] جرد وتعريب بقية شاشات zexa (register/dashboard/landing) تدريجيًا
-- [ ] دمج hudhud-rtl.css في قالب النتائج — يتطلب موافقة صريحة (تعديل ملف عقد C-01)
-- [ ] فحوص تشغيلية عند توفر بيئة
-
-### المرحلة E — HUDHUD AI ENGINE
-AI Gateway بموارد ZERO-COST موثقة الحدود، Meta AI محظور
+### المرحلة E ✅ (كود — FIXED_UNVERIFIED / E-02 PARTIAL)
+- [x] E-01 سجل مزودي AI المركزي (جرد فعلي، حظر Meta موثق، fallback صادق لكل مزود) + اختبارات
+- [x] E-01 شاشة `/providers/ai` (حضور فقط؛ شاشة /providers الأصلية لم تُمس)
+- [x] E-02 سياسة مفاتيح خادمية key-policy.ts + اختبارات — المرجع الوحيد لجلب المفاتيح، المتصفح undefined دائمًا
+- [x] توثيق AI-ENGINE.md (جرد، قواعد R1–R4، نقاط موافقة)
+- [ ] E-02 ترقيع الملفات الستة (إزالة فروع NEXT_PUBLIC) — **BLOCKED على بيئة سحب/تشغيل (C-03)**
+- [ ] تفعيل أي مفتاح مدفوع — قرار المشغّل حصرًا (ZERO-COST)
 
 ### المرحلة F — الأمن والجودة
-تدقيق OWASP عبر الشيفرة + توسيع security-audit.ts
+تدقيق OWASP عبر الشيفرة + توسيع security-audit.ts (يشمل متابعة إقفال E-02)
 
 ### المرحلة G — تجهيز الإنتاج
-Staging + اختبارات فعلية + Backup/Restore مختبر + توثيق نهائي → **نقطة موافقة للنشر**
+Staging + اختبارات فعلية + Backup/Restore + توثيق نهائي → **نقطة موافقة للنشر**
 
-## 8. القيود الثابتة (ملزمة لكل المراحل)
+## 8. القيود الثابتة
 
-1. لا دمج في `master` دون موافقة صريحة — فروع العمل وكل ما عليها تبقى للمراجعة فقط.
-2. لا حذف أي شاشة أو وظيفة أصلية — إضافات فقط.
-3. لا migrations مدمرة — كل ترحيل جديد CREATE-only.
-4. ZERO-COST RUNTIME — لا خدمات مدفوعة، لا مفاتيح جديدة تُفعَّل. Meta AI محظور تمامًا.
-5. لا ادعاء نجاح دون دليل — FIXED_UNVERIFIED لا تصبح VERIFIED إلا بتشغيل فعلي موثق.
-6. لا أسرار في المستودع أو السجلات أو الواجهات.
+1. لا دمج في `master` دون موافقة صريحة.
+2. لا حذف شاشة/وظيفة أصلية — إضافات فقط.
+3. لا migrations مدمرة — CREATE-only.
+4. ZERO-COST RUNTIME — لا مفاتيح تُفعَّل؛ **Meta AI محظور تمامًا** (سياسة E-01).
+5. لا ادعاء نجاح دون دليل تشغيل.
+6. لا أسرار في المستودع/السجلات/الواجهات — **ومفاتيح AI لا تمر للمتصفح أبدًا (E-02)**.
 
 ## 9. فجوات التحقق المفتوحة (صادقة)
 
-- كل إصلاحات المراحل B وC وD: **NOT RUN** (كود مكتوب ومراجَع ذاتيًا، بلا بيئة تنفيذ للوكيل).
-- ترحيل OIDC 0002: صالح للتشغيل لكن 0002_snapshot.json يُولَّد محليًا بـ `pnpm db:generate`.
-- عقود readiness للمحركات الخمسة غير الصادقة (zexa/nchat/rhex liveness فقط؛ osiris يصرح scope=process بصدق) — تحسينها تدريجيًا.
-- خط IBM Plex Sans Arabic يُحمَّل من Google Fonts — في بيئة بلا إنترنت يجب استبداله بنسخة self-hosted (قرار تشغيلي في المرحلة G).
-- فحص تغييرات غير ملتزمة محليًا: غير متاح عبر API — مسؤولية المشغّل عند السحب.
+- إصلاحات المراحل B–E: **NOT RUN** (لا بيئة تنفيذ — C-03).
+- E-02: السياسة منفذة ومختبرة، لكن فروع NEXT_PUBLIC القديمة في 6 ملفات nchat لا تزال في الشيفرة — أي مشغّل يضبط NEXT_PUBLIC_OPENAI_API_KEY اليوم يكشف المفتاح حتى إتمام الترقيع (موثق وشاشة البوابة تحذر).
+- ترحيل OIDC 0002_snapshot.json: يُولَّد محليًا (db:generate).
+- خط IBM Plex Sans Arabic: من Google Fonts — بيئة بلا إنترنت تحتاج self-hosted (قرار G).
+- فحص تغييرات محلية غير ملتزمة: غير متاح عبر API.
 
 ---
 
-*ملف حي — يُحدَّث مع كل مرحلة. المرحلة D موثقة في git log للفرع `feature/hudhud-i18n-phase-d` (9 التزامات).*
+*ملف حي. المرحلة E موثقة في git log للفرع `feature/hudhud-ai-phase-e` (6 التزامات).*
