@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { authClient } from "@/lib/auth-client";
 import { db } from "@/db";
 import { appHealthSnapshot } from "@/db/schema";
 import { desc, gte } from "drizzle-orm";
