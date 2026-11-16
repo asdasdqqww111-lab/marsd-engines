@@ -13,6 +13,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "health.refresh": "تحديث فحص الصحة",
   "settings.manage": "إدارة الإعدادات",
   "users.manage": "إدارة المستخدمين",
+  "monitoring.view": "عرض المراقبة",
 };
 
 const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS);
