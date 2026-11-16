@@ -1,0 +1,175 @@
+/*
+  HUDHUD Components — مكونات مشتركة للصفحات الداخلية (المرحلة 3)
+  استبدال الأنماط المُضمّنة المتكررة بفئات موحدة، من التوكنز فقط.
+*/
+
+/* ── الحقول والنماذج ────────────────────────────── */
+
+.hudhud-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.hudhud-input,
+.hudhud-select {
+  background: var(--hudhud-surface-2);
+  color: var(--hudhud-text-primary);
+  border: 1px solid var(--hudhud-border);
+  border-radius: var(--hudhud-radius-sm);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hudhud-input:focus-visible,
+.hudhud-select:focus-visible {
+  outline: 2px solid var(--hudhud-info);
+  outline-offset: 1px;
+  border-color: var(--hudhud-accent);
+}
+
+.hudhud-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hudhud-space-3);
+  align-items: flex-end;
+  margin-bottom: var(--hudhud-space-4);
+}
+
+.hudhud-form-row .hudhud-field {
+  min-width: 160px;
+}
+
+/* ── الأقسام والعناوين الفرعية ───────────────────── */
+
+.hudhud-section {
+  margin-bottom: var(--hudhud-space-8);
+}
+
+.hudhud-section-title {
+  font-size: 1.05rem;
+  margin: 0 0 var(--hudhud-space-3);
+}
+
+/* ── رموز داخل النص ────────────────────────────── */
+
+.hudhud-code {
+  font-family: var(--hudhud-font-mono);
+  background: var(--hudhud-surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  direction: ltr;
+  display: inline-block;
+  font-size: 0.85em;
+}
+
+/* ── شارة الحالة ─────────────────────────────────── */
+
+.hudhud-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--hudhud-border);
+}
+
+.hudhud-badge-ok {
+  color: var(--hudhud-success);
+  border-color: color-mix(in srgb, var(--hudhud-success) 40%, transparent);
+  background: color-mix(in srgb, var(--hudhud-success) 10%, transparent);
+}
+
+.hudhud-badge-warn {
+  color: var(--hudhud-warning);
+  border-color: color-mix(in srgb, var(--hudhud-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--hudhud-warning) 10%, transparent);
+}
+
+.hudhud-badge-bad {
+  color: var(--hudhud-danger);
+  border-color: color-mix(in srgb, var(--hudhud-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--hudhud-danger) 10%, transparent);
+}
+
+.hudhud-badge-info {
+  color: var(--hudhud-info);
+  border-color: color-mix(in srgb, var(--hudhud-info) 40%, transparent);
+  background: color-mix(in srgb, var(--hudhud-info) 10%, transparent);
+}
+
+.hudhud-badge-muted {
+  color: var(--hudhud-text-secondary);
+}
+
+/* ── شاشة تسجيل الدخول ──────────────────────────── */
+
+.hudhud-login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hudhud-space-6);
+  background:
+    radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--hudhud-accent) 8%, transparent), transparent 45%),
+    radial-gradient(circle at 85% 85%, color-mix(in srgb, var(--hudhud-info) 6%, transparent), transparent 40%),
+    var(--hudhud-bg);
+}
+
+.hudhud-login-card {
+  width: 100%;
+  max-width: 400px;
+  display: grid;
+  gap: var(--hudhud-space-4);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.hudhud-login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--hudhud-space-2);
+  text-align: center;
+}
+
+.hudhud-login-title {
+  color: var(--hudhud-accent);
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.hudhud-login-sub {
+  color: var(--hudhud-text-secondary);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.hudhud-login-error {
+  color: var(--hudhud-danger);
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.hudhud-login-btn {
+  width: 100%;
+}
+
+/* ── استجابة الهواتف ───────────────────────────── */
+
+@media (max-width: 768px) {
+  .hudhud-login-wrap {
+    padding: var(--hudhud-space-4);
+    align-items: flex-start;
+    padding-top: 15vh;
+  }
+
+  .hudhud-form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
