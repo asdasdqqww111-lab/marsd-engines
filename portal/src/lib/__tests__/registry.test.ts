@@ -36,19 +36,41 @@ describe("registry", () => {
     }
   });
 
-  it("apps with verified health paths match actual app source", () => {
+  it("every app declares a readiness contract level (M-08)", () => {
+    for (const app of HUDHUD_APPS) {
+      expect(["none", "readiness-level"]).toContain(app.readinessContract);
+    }
+  });
+
+  it("all seven apps have verified health paths matching actual app source", () => {
     // Verified against real repository source on 2026-11-16:
     // osiris-map/src/app/api/health/route.ts
     // neureed/app/api/health/route.ts
     // nchat/frontend/src/app/api/health/route.ts
     // umami/docker-compose.yml (healthcheck uses /api/heartbeat)
-    const verified = HUDHUD_APPS.filter((a) => a.healthPathSource === "verified-source");
-    expect(verified.map((a) => [a.techId, a.healthPath])).toEqual([
+    // loki-verify/health.py (readiness.level ready/degraded/not_ready — M-03)
+    // zexa-auth/src/app/api/health/route.ts
+    // rhex-forum/src/app/api/health/route.ts
+    // (loki/zexa/rhex contracts were added with HUDHUD PRs #5 and #8.)
+    expect(HUDHUD_APPS.map((a) => [a.techId, a.healthPath])).toEqual([
       ["osiris-map", "/api/health"],
       ["neureed", "/api/health"],
+      ["loki-verify", "/api/health"],
+      ["zexa-auth", "/api/health"],
       ["nchat", "/api/health"],
+      ["rhex-forum", "/api/health"],
       ["umami", "/api/heartbeat"],
     ]);
+  });
+
+  it("only apps with a real readiness contract declare readiness-level", () => {
+    // M-03 (loki-verify health.py) is currently the only app emitting
+    // readiness.level. The registry must not claim a contract that does not
+    // exist in the app source — verified 2026-11-16.
+    const readinessApps = HUDHUD_APPS.filter(
+      (a) => a.readinessContract === "readiness-level",
+    );
+    expect(readinessApps.map((a) => a.techId)).toEqual(["loki-verify"]);
   });
 
   it("finds app by techId", () => {

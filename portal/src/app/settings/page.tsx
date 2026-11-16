@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { hasPermission, normalizeRole, PORTAL_ROLES, PERMISSION_MATRIX } from "@/lib/rbac";
-import { HUDHUD_APPS } from "@/lib/registry";
+import { appUrlStatuses, currentEnvironment } from "@/lib/app-urls";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,13 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: "مشاهد",
 };
 
+const ENV_LABELS: Record<string, string> = {
+  dev: "تطوير (dev)",
+  staging: "اختبار (staging)",
+  production: "إنتاج (production)",
+  unspecified: "غير محددة — راجع HUDHUD_ENV",
+};
+
 export default async function SettingsPage() {
   const h = await headers();
   const session = await auth.api.getSession({ headers: h });
@@ -39,13 +46,12 @@ export default async function SettingsPage() {
     databaseUrl: Boolean(process.env.DATABASE_URL),
     betterAuthSecret: Boolean(process.env.BETTER_AUTH_SECRET),
     betterAuthUrl: Boolean(process.env.BETTER_AUTH_URL),
+    hudhudEnv: Boolean(process.env.HUDHUD_ENV),
   };
 
-  const appUrls = HUDHUD_APPS.map((app) => ({
-    brandName: app.brandName,
-    techId: app.techId,
-    configured: Boolean(process.env[app.baseUrlEnv]),
-  }));
+  // H-01: مركزي — كل تطبيق مع متغير بيئته المطلوب والنمط الموثق لبيئته.
+  const appUrls = appUrlStatuses();
+  const env = currentEnvironment();
 
   const configuredApps = appUrls.filter((a) => a.configured).length;
 
@@ -77,18 +83,27 @@ export default async function SettingsPage() {
           <EnvRow label="قاعدة بيانات hudhud_core" present={envPresence.databaseUrl} />
           <EnvRow label="سر المصادقة BETTER_AUTH_SECRET" present={envPresence.betterAuthSecret} />
           <EnvRow label="عنوان البوابة BETTER_AUTH_URL" present={envPresence.betterAuthUrl} />
+          <EnvRow
+            label={`بيئة التشغيل HUDHUD_ENV — الحالية: ${ENV_LABELS[env]}`}
+            present={envPresence.hudhudEnv}
+          />
         </div>
       </section>
 
       <section className="hudhud-section">
-        <h2 className="hudhud-section-title">عناوين التشغيل للتطبيقات</h2>
+        <h2 className="hudhud-section-title">عناوين التشغيل للتطبيقات (H-01)</h2>
+        <p className="hudhud-page-sub" style={{ marginBottom: "12px" }}>
+          كل تطبيق يُفتح من عنوان تشغيله المضبوط عبر متغير البيئة. النمط الموثق
+          يعرض لك الشكل المتبع في كل بيئة — بدون أي عناوين حقيقية.
+        </p>
         <div className="hudhud-surface" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "640px" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                 <th style={{ padding: "10px", textAlign: "right" }}>التطبيق</th>
-                <th style={{ padding: "10px", textAlign: "right" }}>المعرّف التقني</th>
-                <th style={{ padding: "10px", textAlign: "right" }}>العنوان مضبوط؟</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>متغير البيئة المطلوب</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>النمط الموثق (بيئتك الحالية)</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>مضبوط؟</th>
               </tr>
             </thead>
             <tbody>
@@ -96,7 +111,10 @@ export default async function SettingsPage() {
                 <tr key={a.techId} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                   <td style={{ padding: "10px" }}>{a.brandName}</td>
                   <td style={{ padding: "10px" }}>
-                    <code className="hudhud-code">{a.techId}</code>
+                    <code className="hudhud-code">{a.baseUrlEnv}</code>
+                  </td>
+                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem", color: "var(--hudhud-text-secondary)" }}>
+                    {a.templateHint ?? "— حدّد HUDHUD_ENV لعرض النمط —"}
                   </td>
                   <td style={{ padding: "10px" }}>
                     {a.configured ? (

@@ -35,8 +35,11 @@ type OidcClient = {
  * [{"clientId":"...","clientSecret":"...","redirectURIs":["https://app.example/callback"],"metadata":{...}}]
  *
  * Values come from the operator's secret store; the environment is the only source.
+ *
+ * Exported (HUDHUD M-02) so the admin settings screen can report the client count
+ * from the exact same source the runtime loads — never the contents, only the count.
  */
-function loadOidcClients(): OidcClient[] {
+export function loadOidcClients(): OidcClient[] {
   const raw = process.env.HUDHUD_OIDC_CLIENTS;
   if (!raw) return [];
   try {

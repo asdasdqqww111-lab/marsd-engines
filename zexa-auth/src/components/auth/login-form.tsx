@@ -11,10 +11,17 @@ import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginUser } from "../../app/auth/login/action";
 import { FormSuccess, FormError } from "../ui/form-messages";
+import { HUDHUD_DICT, t } from "@/lib/hudhud-dictionary";
+
+/**
+ * HUDHUD D-03 — نموذج الدخول معرب: الرسائل والأزرار من القاموس الموحد.
+ * المنطق (zod/react-hook-form/loginUser) دون تعديل.
+ */
+const d = HUDHUD_DICT;
 
 const schema = z.object({
-  email: z.string().email({ message: "Invalid email address" }),
-  password: z.string().min(1, { message: "Password is required" }),
+  email: z.string().email({ message: t(d.auth.invalidEmail) }),
+  password: z.string().min(1, { message: t(d.auth.passwordRequired) }),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -59,12 +66,13 @@ const LoginForm = () => {
       <FormSuccess message={formState.success || ""} />
       <FormError message={formState.error || ""} />
       <div className="flex flex-col gap-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">{t(d.auth.email)}</Label>
         <Input
           id="email"
           type="email"
           placeholder="you@example.com"
           autoComplete="email"
+          dir="ltr"
           {...register("email")}
         />
         {errors.email && (
@@ -72,21 +80,22 @@ const LoginForm = () => {
         )}
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor={id}>Password</Label>
+        <Label htmlFor={id}>{t(d.auth.password)}</Label>
         <div className="relative">
           <Input
             id={id}
             type={isVisible ? "text" : "password"}
-            placeholder="Password"
+            placeholder="••••••••"
             autoComplete="current-password"
             className="pe-9"
+            dir="ltr"
             {...register("password")}
           />
           <button
             className="text-muted-foreground/80 hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md transition-[color,box-shadow] outline-none focus:z-10 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             onClick={toggleVisibility}
-            aria-label={isVisible ? "Hide password" : "Show password"}
+            aria-label={isVisible ? t(d.auth.hidePassword) : t(d.auth.showPassword)}
             aria-pressed={isVisible}
             aria-controls="password"
           >
@@ -104,7 +113,7 @@ const LoginForm = () => {
         )}
       </div>
       <Button type="submit" className="mt-2 w-full" disabled={isSubmitting}>
-        {isSubmitting ? "Logging in..." : "Login"}
+        {isSubmitting ? t(d.auth.loggingIn) : t(d.auth.login)}
       </Button>
     </form>
   );
