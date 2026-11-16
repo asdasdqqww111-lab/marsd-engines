@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { Client } from "pg";
 import { db } from "@/db";
 import { backupRecord } from "@/db/schema";
 
@@ -11,9 +12,10 @@ import { backupRecord } from "@/db/schema";
  *
  * القواعد:
  * - hudhud_core فقط؛ لا يلمس أي قاعدة تطبيق.
+ * - عدد الجداول يُقرأ فعليًا من information_schema قبل النسخ — لا رقم مُلفق.
  * - النتيجة تُسجَّل في backup_record بالنتيجة الفعلية (نجاح/فشل + حجم + عدد جداول).
  * - لا تُدّعى نسخة لم تُنفّذ: عند غياب pg_dump أو فشل العملية، يُسجَّل فشل صادق.
- * - مسار الحفظ من HUDHUD_BACKUP_DIR؛ لا تلتزم أسرار ولا تُطبع كلمة مرور أبدًا.
+ * - مسار الحفظ من HUDHUD_BACKUP_DIR؛ لا يلتزم أسرار ولا تُطبع كلمة مرور أبدًا.
  *
  * Usage:
  *   HUDHUD_BACKUP_DIR=/backups npm run db:backup
@@ -25,7 +27,7 @@ function runPgDump(outDir: string, fileName: string): Promise<void> {
       "--format=custom",
       "--file",
       path.join(outDir, fileName),
-      // الاتصال من DATABASE_URL عبر الوسيط -d (لا وسيط سطر قيادة للسر أبدًا)
+      // الاتصال من DATABASE_URL عبر الوسيط -d (لا سر على سطر الأوامر أبدًا)
       "--dbname",
       process.env.DATABASE_URL!,
     ]);
@@ -36,17 +38,30 @@ function runPgDump(outDir: string, fileName: string): Promise<void> {
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
       if (code === 0) resolve();
-      else reject(new Error(stderr.split("\n").slice(0, 3).join(" ").slice(0, 200) || `pg_dump exited ${code}`));
+      else
+        reject(
+          new Error(
+            stderr
+              .split("\n")
+              .slice(0, 3)
+              .join(" ")
+              .slice(0, 200) || `pg_dump exited ${code}`,
+          ),
+        );
     });
   });
 }
 
-function countTablesInDump(outDir: string, fileName: string): number {
+async function countTables(): Promise<number> {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
   try {
-    const stats = fs.statSync(path.join(outDir, fileName));
-    return stats.size > 0 ? 1 : 0;
-  } catch {
-    return 0;
+    const res = await client.query(
+      `SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'public'`,
+    );
+    return res.rows[0].n as number;
+  } finally {
+    await client.end();
   }
 }
 
@@ -57,7 +72,9 @@ async function main() {
 
   const outDir = process.env.HUDHUD_BACKUP_DIR;
   if (!outDir) {
-    throw new Error("HUDHUD_BACKUP_DIR is required (destination directory for backup files)");
+    throw new Error(
+      "HUDHUD_BACKUP_DIR is required (destination directory for backup files)",
+    );
   }
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -65,12 +82,11 @@ async function main() {
   const fileName = `hudhud_core_${startedAt.toISOString().replace(/[:.]/g, "-")}.dump`;
 
   try {
+    // العدّ الفعلي قبل النسخ — مصدر حقيقة من القاعدة نفسها.
+    const tablesCount = await countTables();
     await runPgDump(outDir, fileName);
 
-    const full = path.join(outDir, fileName);
-    const sizeBytes = fs.statSync(full).size;
-    // عدد الجداول الفعلي من المخطط المعروف — سجلنا 8 جداول في hudhud_core
-    const tablesCount = 8;
+    const sizeBytes = fs.statSync(path.join(outDir, fileName)).size;
 
     await db.insert(backupRecord).values({
       id: randomUUID(),
@@ -84,7 +100,9 @@ async function main() {
       finishedAt: new Date(),
     });
 
-    console.log(`[backup] success: ${fileName} (${sizeBytes} bytes)`);
+    console.log(
+      `[backup] success: ${fileName} (${sizeBytes} bytes, ${tablesCount} tables)`,
+    );
   } catch (err) {
     await db
       .insert(backupRecord)
