@@ -15,7 +15,7 @@
 | الفرع الافتراضي | `master` | getRepo |
 | رأس master | `164127cb` — "Merge pull request #8 … OIDC provider" | resolveRef |
 | إجمالي الفروع | 16 فرعًا (+ فرع العمل feature/hudhud-completion-baseline) | listBranches |
-| Pull Requests | 11 — كلها مغلقة ومدموجة (لا PRs مفتوحة) | listPullRequests |
+| Pull Requests | 11 مدموجة (PR #12 مفتوح — فرع العمل الحالي) | listPullRequests |
 | Tags / Releases | 0 / 0 | listTags, listReleases |
 | GitHub Actions | **صفر تشغيلات** — مجلد `.github` غير موجود على master | listWorkflowRuns, getContents |
 | ملف CI جاهز غير مفعّل | `ci/ci.yml` موجود بجذر المستودع (portal: typecheck+lint+test+build, gitleaks) | getContents |
@@ -45,7 +45,7 @@
 | `feature/hudhud-production-readiness` | خلف بـ 22، أمامه 0 | فرع قديم خالٍ |
 | `feature/hudhud-cicd` | خلف بـ 31، أمامه 0 | فرع قديم خالٍ |
 | `feature/hudhud-portal` | خلف بـ 108، أمامه 0 | فرع قديم خالٍ |
-| `feature/hudhud-completion-baseline` | **فرع العمل الحالي** — 10+ commits من هذه المرحلة | المرحلتان A وB |
+| `feature/hudhud-completion-baseline` | **فرع العمل الحالي** — المرحلتان A وB كاملتان | PR #12 مفتوح للمراجعة، لا دمج دون موافقة |
 
 ## 4. عقود الصحة
 
@@ -79,10 +79,10 @@
 | H-06 | nchat | HIGH | شاشات تجريبية مكشوفة للإنتاج: `/demo`, `/search-demo`, `/test-env` (`/dev` محمي سابقًا) | توسيع `DEV_ONLY_ROUTES` في middleware.ts لتشمل الثلاثة — **الشاشات محفوظة** وتعمل في dev/E2E وتُحجب في production فقط | nchat/frontend/src/middleware.ts | FIXED_UNVERIFIED |
 | H-07 | المنظومة | HIGH | قواعد `hudhud_*` المعزولة غير منفذة | يتطلب بنية إنتاج (موارد) — نقطة موافقة في المرحلة G | إعدادات DB | NEEDS APPROVAL |
 | M-01 | rhex-forum | MEDIUM | ازدواج lockfiles (npm + pnpm) | pnpm رسمي (packageManager + Dockerfile --frozen-lockfile)؛ `package-lock.json` القديم أُضيف إلى .gitignore مع تعليق توضيحي — **لم يُحذف الملف** (الحذف يتطلب موافقة) | rhex-forum/.gitignore | FIXED_UNVERIFIED |
-| M-02 | zexa-auth | MEDIUM | لوحة إدارة شبه فارغة (تحويل فقط) | تُنجز في المرحلة B الثانية بعد جرد Backend كامل | src/app/admin/** | OPEN |
+| M-02 | zexa-auth | MEDIUM | لوحة إدارة شبه فارغة (تحويل فقط) + رابط sidebar إلى مسار غير موجود (`/admin/settings` كان 404) | جرد Backend كامل ثم بناء: `/admin` لوحة overview حقيقية (عدادات مستخدمين/جلسات/admins من PostgreSQL الفعلي — فشل القراءة يظهر "Error" بصدق، لا أرقام وهمية) + `/admin/settings` شاشة إعدادات حقيقية من الحالة الفعلية للبيئة (OIDC enabled/issuer/عدد العملاء من `loadOidcClients` نفسها، مزودو social configured/not، بريد configured/not، عدد الجلسات) + `/api/admin/settings` مسار خادمي fail-closed (401/403 كمعيار C-02) يكشف حالات الضبط فقط — لا أسرار ولا قيم أبدًا + تغطية sidebar كاملة (Dashboard/Users/Settings) | src/app/admin/page.tsx، src/app/admin/settings/page.tsx، src/app/api/admin/settings/route.ts، src/lib/auth.ts (تصدير loadOidcClients)، src/components/admin/dashboard-sidebar.tsx | FIXED_UNVERIFIED |
 | M-03 | loki-verify | MEDIUM | عقد صحة يرد "ok" دائمًا دون فحص تبعيات | health.py محدّث: liveness + readiness.level (ready/degraded/not_ready) مع كشف تهيئة الـpipeline وحضور مزود (حضور فقط — لا قيم/أسرار) | loki-verify/health.py | FIXED_UNVERIFIED |
 | M-04 | المنظومة | MEDIUM | لا زر عودة موحد للتطبيقات إلى CONTROL | المرحلة C | كل تطبيق (إضافة فقط) | OPEN (مرحلة C) |
-| M-06 | osiris-map | MEDIUM | `/cutout` معزولة من التنقل | قرار ربط أو وسم — المرحلة B الثانية | cutout | OPEN |
+| M-06 | osiris-map | MEDIUM | `/cutout` معزولة من التنقل — لا عودة إلى الخريطة عند وجود bbox صالح | قرار معماري: الصفحة تبقى مستقلة بتصميمها (روابط bbox قابلة للمشاركة محفوظة) مع ترويسة عائمة دائمة تحمل رابط "Open the map" إلى `/` — إضافة فقط في page.tsx، المكوّن CutoutView دون تعديل | osiris-map/src/app/cutout/page.tsx | FIXED_UNVERIFIED |
 | M-08 | المنظومة | MEDIUM | حالات الصحة الخماسية غير منفذة في بقية التطبيقات | loki أُنجز (M-03)؛ بقية التطبيقات المرحلة C | مسارات الصحة | PARTIAL |
 | L-01 | osiris-map | LOW | مجلدات scratch/runs في الشجرة | مراجعة gitignore — مرحلة لاحقة | .gitignore | OPEN |
 | L-02 | المنظومة | LOW | لا Tags/Releases | خطة إصدارات عند الجاهزية (مرحلة G) | — | OPEN |
@@ -92,7 +92,7 @@
 
 | ما ورد سابقًا | نتيجة إعادة التحقق |
 |---|---|
-| "صفحة /admin في zexa شبه فارغة" | هي تحويل لـ /admin/users وهذه موجودة لكن المسار كان بلا حماية داخلية (C-02) + إدارة OIDC غائبة من القاعدة (H-04) |
+| "صفحة /admin في zexa شبه فارغة" | كانت تحويلًا لـ /admin/users؛ الآن لوحة overview حقيقية، والمسار كان بلا حماية داخلية (C-02) + إدارة OIDC غائبة من القاعدة (H-04) |
 | "CI محجوب بسبب نطاق التوكن" | مؤكد — 0 تشغيلات وci/ci.yml جاهز غير مفعّل |
 | "قواعد hudhud_* مخططة فقط" | مؤكد |
 | "Loki بلا DB ومشكلة ملف مشترك" | مؤكد وأُصلح معماريًا (C-01) |
@@ -107,15 +107,15 @@
 - [x] BASELINE.md + مصفوفة المشكلات
 - [x] فرع العمل `feature/hudhud-completion-baseline`
 
-### المرحلة B — إصلاح التطبيقات (الحالة: الحرج منجز، الباقي مستمر)
+### المرحلة B — إصلاح التطبيقات ✅ منجزة ككود (كلها FIXED_UNVERIFIED حتى التشغيل)
 - [x] C-02 إغلاق ثغرة الوصول في zexa-admin
 - [x] C-01 تخزين معزول لنتائج Loki + فشل صادق
 - [x] M-03 عقد صحة صادق لـ Loki
 - [x] H-06 حرس بيئة لشاشات nChat التجريبية (دون حذف)
 - [x] M-01 حسم pnpm لـ rhex-forum (دون حذف ملف)
 - [x] H-04 ترحيل + schema جداول OIDC في zexa
-- [ ] M-02 استكمال لوحة إدارة zexa (جرد Backend ثم بناء)
-- [ ] M-06 قرار `/cutout` في osiris
+- [x] M-02 استكمال لوحة إدارة zexa (overview حقيقي + settings حقيقية + API محمي)
+- [x] M-06 رابط عودة دائم إلى الخريطة في /cutout (إضافة فقط)
 - [ ] فحوص تشغيلية لكل ما أعلاه عند توفر بيئة (تُسجل بصدق NOT RUN حتى ذلك الحين)
 
 ### المرحلة C — التكامل
@@ -144,10 +144,10 @@ Staging + اختبارات فعلية + Backup/Restore مختبر + توثيق �
 
 ## 9. فجوات التحقق المفتوحة (صادقة)
 
-- كل إصلاحات المرحلة B: **NOT RUN** (كود مكتوب ومراجَع ذاتيًا، بلا بيئة تنفيذ للوكيل).
+- كل إصلاحات المرحلة B (بما فيها M-02 وM-06): **NOT RUN** (كود مكتوب ومراجَع ذاتيًا، بلا بيئة تنفيذ للوكيل).
 - ترحيل OIDC 0002: صالح للتشغيل لكن 0002_snapshot.json يُولَّد محليًا بـ `pnpm db:generate` لملاءمة أدوات drizzle-kit.
 - فحص تغييرات غير ملتزمة محليًا: غير متاح عبر API — مسؤولية المشغّل عند السحب.
 
 ---
 
-*ملف حي — يُحدَّث مع كل مرحلة. الالتزام المرجعي للمرحلة B موثق في git log للفرع `feature/hudhud-completion-baseline`.*
+*ملف حي — يُحدَّث مع كل مرحلة. الالتزامات المرجعية للمرحلة B موثقة في git log للفرع `feature/hudhud-completion-baseline` (المرحلة B الثانية: 6 التزامات — auth export، API settings، شاشة settings، لوحة overview، ترويسة cutout، sidebar).*
