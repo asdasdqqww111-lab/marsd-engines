@@ -8,7 +8,7 @@ import { db } from "@/db";
 import { backupRecord } from "@/db/schema";
 
 /**
- * نسخ احتياطي فعلي لقاعدة hudhud_core عبر pg_dump — المرحلة 3.
+ * نسخ احتياطي فعلي لقاعدة hudhud_core عبر pg_dump — المرحلة 3 + تحسين أمني المرحلة 4.
  *
  * القواعد:
  * - hudhud_core فقط؛ لا يلمس أي قاعدة تطبيق.
@@ -17,20 +17,67 @@ import { backupRecord } from "@/db/schema";
  * - لا تُدّعى نسخة لم تُنفّذ: عند غياب pg_dump أو فشل العملية، يُسجَّل فشل صادق.
  * - مسار الحفظ من HUDHUD_BACKUP_DIR؛ لا يلتزم أسرار ولا تُطبع كلمة مرور أبدًا.
  *
+ * تحسين المرحلة 4 (أمن): الاتصال يمر عبر بيئة العملية الفرعية (PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD)
+ * بدل تمرير connection string على سطر الأوامر — يمنع ظهور كلمة المرور في
+ * جدول العمليات (/proc/<pid>/cmdline) على المضيف. موثق في docs/HUDHUD-SECURITY-NOTES.
+ *
  * Usage:
  *   HUDHUD_BACKUP_DIR=/backups npm run db:backup
  */
 
+interface PgConnParts {
+  host: string;
+  port: string;
+  database: string;
+  user: string;
+  password: string;
+}
+
+/** تحليل DATABASE_URL إلى أجزاء بيئة العملية الفرعية — لا تُطبع أبدًا. */
+function parsePgUrl(raw: string): PgConnParts | null {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "postgres:" && u.protocol !== "postgresql:") return null;
+    return {
+      host: u.hostname || "localhost",
+      port: u.port || "5432",
+      database: u.pathname.replace(/^\//, "") || "hudhud_core",
+      user: decodeURIComponent(u.username || ""),
+      password: decodeURIComponent(u.password || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function runPgDump(outDir: string, fileName: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn("pg_dump", [
-      "--format=custom",
-      "--file",
-      path.join(outDir, fileName),
-      // الاتصال من DATABASE_URL عبر الوسيط -d (لا سر على سطر الأوامر أبدًا)
-      "--dbname",
-      process.env.DATABASE_URL!,
-    ]);
+    const parts = parsePgUrl(process.env.DATABASE_URL!);
+    if (!parts) {
+      reject(new Error("DATABASE_URL غير صالح لتحليله إلى أجزاء اتصال"));
+      return;
+    }
+
+    const child = spawn(
+      "pg_dump",
+      [
+        "--format=custom",
+        "--file",
+        path.join(outDir, fileName),
+        // لا --dbname هنا: الاتصال كله عبر بيئة العملية الفرعية — السر لا يظهر في سطر الأوامر.
+      ],
+      {
+        env: {
+          ...process.env,
+          PGHOST: parts.host,
+          PGPORT: parts.port,
+          PGDATABASE: parts.database,
+          PGUSER: parts.user,
+          PGPASSWORD: parts.password,
+        },
+      },
+    );
+
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += String(d);
