@@ -55,6 +55,7 @@
   color: var(--hudhud-text-secondary);
   font-size: 0.75rem;
   margin-top: 2px;
+}
 
 .hudhud-nav {
   display: flex;
@@ -162,6 +163,79 @@
   border-block-start: 1px solid var(--hudhud-border);
 }
 
+/* ── ترويسة الصفحة ──────────────────────────────── */
+
+.hudhud-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hudhud-space-3);
+  margin-bottom: var(--hudhud-space-6);
+}
+
+.hudhud-page-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--hudhud-text-primary);
+}
+
+.hudhud-page-sub {
+  margin: 4px 0 0;
+  color: var(--hudhud-text-secondary);
+  font-size: 0.85rem;
+}
+
+.hudhud-note {
+  color: var(--hudhud-text-secondary);
+  font-size: 0.8rem;
+  margin-top: var(--hudhud-space-4);
+}
+
+/* ── بطاقات KPI (مؤشرات من مصدر حقيقي فقط) ─────── */
+
+.hudhud-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--hudhud-space-3);
+  margin-bottom: var(--hudhud-space-6);
+}
+
+.hudhud-kpi {
+  background: var(--hudhud-surface);
+  border: 1px solid var(--hudhud-border);
+  border-radius: var(--hudhud-radius);
+  padding: var(--hudhud-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hudhud-space-1);
+}
+
+.hudhud-kpi-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-family: var(--hudhud-font-mono);
+  color: var(--hudhud-text-primary);
+}
+
+.hudhud-kpi-label {
+  color: var(--hudhud-text-secondary);
+  font-size: 0.8rem;
+}
+
+.hudhud-ok {
+  color: var(--hudhud-success);
+}
+
+.hudhud-warn {
+  color: var(--hudhud-warning);
+}
+
+.hudhud-bad {
+  color: var(--hudhud-danger);
+}
+
 /* ── استجابة الهواتف: الشريط الجانبي يصبح سفليًا ── */
 
 @media (max-width: 768px) {
@@ -217,6 +291,10 @@
 
   .hudhud-main {
     padding: var(--hudhud-space-4);
+  }
+
+  .hudhud-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
