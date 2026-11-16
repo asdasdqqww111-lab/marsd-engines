@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { authClient } from "@/lib/auth-client";
 import { db } from "@/db";
 import { appHealthSnapshot } from "@/db/schema";
 import { desc, gte } from "drizzle-orm";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
 import { HUDHUD_APPS } from "@/lib/registry";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +17,11 @@ const L: Record<string, string> = {
   unknown: "غير معروف",
 };
 
-const C: Record<string, string> = {
-  healthy: "var(--hudhud-success)",
-  degraded: "var(--hudhud-warning)",
-  down: "var(--hudhud-danger)",
-  unknown: "var(--hudhud-text-secondary)",
+const B: Record<string, string> = {
+  healthy: "hudhud-badge hudhud-badge-ok",
+  degraded: "hudhud-badge hudhud-badge-warn",
+  down: "hudhud-badge hudhud-badge-bad",
+  unknown: "hudhud-badge hudhud-badge-muted",
 };
 
 /**
@@ -54,28 +54,40 @@ export default async function MonitoringPage() {
     if (!lastPerApp.has(row.techId)) lastPerApp.set(row.techId, row);
   }
 
+  const counts = { healthy: 0, degraded: 0, down: 0, unknown: 0 };
+  for (const row of lastPerApp.values()) {
+    counts[(row.status as keyof typeof counts) ?? "unknown"] += 1;
+  }
+
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
+    <main>
+      <div className="hudhud-page-head">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
-            المراقبة — آخر 24 ساعة
-          </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          <h1 className="hudhud-page-title">المراقبة — آخر 24 ساعة</h1>
+          <p className="hudhud-page-sub">
             تاريخ لقطات الصحة الفعلية من hudhud_core — كل رقم قابل للتحقق
           </p>
         </div>
-        <SignOutButton />
-      </header>
+      </div>
+
+      <section className="hudhud-kpis" aria-label="ملخص آخر حالة لكل تطبيق">
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-ok">{counts.healthy}</span>
+          <span className="hudhud-kpi-label">يعمل</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-warn">{counts.degraded}</span>
+          <span className="hudhud-kpi-label">جزئي</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-bad">{counts.down}</span>
+          <span className="hudhud-kpi-label">متوقف</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value">{counts.unknown}</span>
+          <span className="hudhud-kpi-label">غير معروف</span>
+        </div>
+      </section>
 
       <div className="hudhud-surface" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
@@ -91,6 +103,7 @@ export default async function MonitoringPage() {
             {HUDHUD_APPS.map((app) => {
               const rows = allRecent.filter((r) => r.techId === app.techId);
               const last = lastPerApp.get(app.techId);
+              const status = last?.status ?? "unknown";
               return (
                 <tr key={app.techId} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                   <td style={{ padding: "12px" }}>
@@ -99,11 +112,11 @@ export default async function MonitoringPage() {
                       {app.techId}
                     </div>
                   </td>
-                  <td style={{ padding: "12px", fontWeight: 600, color: C[last?.status ?? "unknown"] }}>
-                    {L[last?.status ?? "unknown"]}
+                  <td style={{ padding: "12px" }}>
+                    <span className={B[status]}>{L[status]}</span>
                     {last?.httpStatus != null ? (
-                      <span style={{ color: "var(--hudhud-text-secondary)", fontWeight: 400, fontSize: "0.8rem" }}>
-                        {" "}· HTTP {last.httpStatus}
+                      <span style={{ color: "var(--hudhud-text-secondary)", fontWeight: 400, fontSize: "0.8rem", marginInlineStart: "6px" }}>
+                        · HTTP {last.httpStatus}
                       </span>
                     ) : null}
                   </td>
@@ -126,8 +139,8 @@ export default async function MonitoringPage() {
         </table>
       </div>
 
-      <p style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem", marginTop: "16px" }}>
-        البيانات من جدول app_health_snapshot. &quot;لا لقطات بعد&quot; تعني عدم وجود فحص مسجل — وليس أن التطبيق معطل.
+      <p className="hudhud-note">
+        البيانات من جدول app_health_snapshot. «لا لقطات بعد» تعني عدم وجود فحص مسجل — وليس أن التطبيق معطل.
       </p>
     </main>
   );

@@ -16,92 +16,64 @@ export default function LoginPage() {
     try {
       const { error } = await authClient.signIn.email({ email, password });
       if (error) {
-        setError(error.message ?? "Login failed");
+        setError(error.message ?? "فشل تسجيل الدخول");
       } else {
         window.location.href = "/";
       }
     } catch {
-      setError("Login failed");
+      setError("فشل تسجيل الدخول");
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px",
-      }}
-    >
-      <form
-        onSubmit={onSubmit}
-        className="hudhud-surface"
-        style={{ width: "100%", maxWidth: "400px", display: "grid", gap: "16px" }}
-      >
-        <h1 style={{ margin: 0, color: "var(--hudhud-accent)", textAlign: "center" }}>
-          هدهد · HUDHUD CONTROL
-        </h1>
-        <p
-          style={{
-            margin: 0,
-            color: "var(--hudhud-text-secondary)",
-            textAlign: "center",
-            fontSize: "0.875rem",
-          }}
-        >
-          بوابة الإدارة المركزية — الدخول للمشغلين المصرح لهم فقط
-        </p>
-        <label style={{ display: "grid", gap: "6px", fontSize: "0.875rem" }}>
+    <main className="hudhud-login-wrap">
+      <form onSubmit={onSubmit} className="hudhud-surface hudhud-login-card">
+        <div className="hudhud-login-brand">
+          <span className="hudhud-brand-mark" aria-hidden="true">
+            هدهد
+          </span>
+          <h1 className="hudhud-login-title">HUDHUD CONTROL</h1>
+          <p className="hudhud-login-sub">
+            بوابة الإدارة المركزية — الدخول للمشغلين المصرح لهم فقط
+          </p>
+        </div>
+
+        <label className="hudhud-field">
           البريد الإلكتروني
           <input
             type="email"
             required
             autoComplete="email"
+            className="hudhud-input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={{
-              background: "var(--hudhud-surface-2)",
-              color: "var(--hudhud-text-primary)",
-              border: "1px solid var(--hudhud-border)",
-              borderRadius: "var(--hudhud-radius-sm)",
-              padding: "10px 12px",
-            }}
           />
         </label>
-        <label style={{ display: "grid", gap: "6px", fontSize: "0.875rem" }}>
+
+        <label className="hudhud-field">
           كلمة المرور
           <input
             type="password"
             required
             autoComplete="current-password"
+            className="hudhud-input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{
-              background: "var(--hudhud-surface-2)",
-              color: "var(--hudhud-text-primary)",
-              border: "1px solid var(--hudhud-border)",
-              borderRadius: "var(--hudhud-radius-sm)",
-              padding: "10px 12px",
-            }}
           />
         </label>
+
         {error ? (
-          <p
-            role="alert"
-            style={{ color: "var(--hudhud-danger)", margin: 0, fontSize: "0.875rem" }}
-          >
+          <p role="alert" className="hudhud-login-error">
             {error}
           </p>
         ) : null}
+
         <button
           type="submit"
           disabled={pending}
-          className="hudhud-btn-primary"
-          style={{ width: "100%" }}
+          className="hudhud-btn-primary hudhud-login-btn"
         >
           {pending ? "جارٍ الدخول…" : "دخول"}
         </button>

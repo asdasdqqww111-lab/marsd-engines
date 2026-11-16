@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "../styles/hudhud-tokens.css";
 import "../styles/hudhud-shell.css";
+import "../styles/hudhud-components.css";
 import { PortalShell } from "@/components/PortalShell";
 
 export const metadata: Metadata = {
