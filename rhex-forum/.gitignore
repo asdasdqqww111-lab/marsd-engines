@@ -16,3 +16,11 @@ tsconfig.tsbuildinfo
 /addons/
 /uploads/
 /backups/
+
+# HUDHUD fix M-01: pnpm is the single official package manager for rhex-forum
+# (declared via packageManager: pnpm@10.33.4 + Dockerfile --frozen-lockfile).
+# A stale npm package-lock.json exists in the tree from an earlier workflow;
+# it must never be regenerated or updated. The file itself is NOT deleted
+# (deletion requires explicit approval) — it is only ignored so npm cannot
+# recreate drift silently. Remove it deliberately once approved.
+package-lock.json

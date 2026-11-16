@@ -36,8 +36,13 @@ const PUBLIC_ROUTES = [
 
 /**
  * Development-only routes (blocked in production)
+ *
+ * HUDHUD fix H-06: extended beyond /dev to cover the remaining demo/test
+ * screens found in the production route tree (/demo, /search-demo, /test-env).
+ * The screens themselves are NOT deleted — they remain fully available in
+ * development and E2E test mode; they are only hidden from production users.
  */
-const DEV_ONLY_ROUTES = ["/dev"];
+const DEV_ONLY_ROUTES = ["/dev", "/demo", "/search-demo", "/test-env"];
 
 /**
  * Routes that require authentication
@@ -277,8 +282,8 @@ export async function middleware(request: NextRequest) {
   // mode so client-side guards handle protection instead of the middleware.
   const isE2ETest = process.env.NEXT_PUBLIC_ENV === "test";
 
-  // Block /dev/* routes in production
-  // These are developer documentation pages that should not be exposed
+  // Block dev/demo/test-only routes in production (HUDHUD H-06).
+  // These are developer pages that should not be exposed to end users.
   if (isDevOnlyRoute(pathname) && !isDev && !isE2ETest) {
     // Return 404 in production for dev routes
     return NextResponse.rewrite(new URL("/404", request.url));

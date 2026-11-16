@@ -1,11 +1,11 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, index, unique } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified")
-    .$defaultFn(() => false)
+    .$defaultFn(() => /* @__PURE__ */ false)
     .notNull(),
   image: text("image"),
   createdAt: timestamp("created_at")
@@ -64,3 +64,72 @@ export const verification = pgTable("verification", {
     () => /* @__PURE__ */ new Date(),
   ),
 });
+
+/**
+ * HUDHUD fix H-04 — OIDC provider tables (better-auth v1.6.11 oidcProvider plugin).
+ * Matches drizzle/0002_oidc_provider_tables.sql exactly. The plugin only loads
+ * when HUDHUD_IDENTITY_ENABLED=true (staging opt-in); these tables are additive
+ * and are never referenced by the default (disabled) path.
+ */
+
+export const oauthApplication = pgTable(
+  "oauth_application",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    icon: text("icon"),
+    metadata: text("metadata"),
+    clientId: text("client_id").notNull().unique(),
+    clientSecret: text("client_secret"),
+    redirectUrls: text("redirect_urls").notNull(),
+    type: text("type").notNull(),
+    disabled: boolean("disabled").default(false),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [
+    index("oauth_application_user_id_idx").on(table.userId),
+  ],
+);
+
+export const oauthAccessToken = pgTable(
+  "oauth_access_token",
+  {
+    id: text("id").primaryKey(),
+    accessToken: text("access_token").notNull().unique(),
+    refreshToken: text("refresh_token").unique(),
+    accessTokenExpiresAt: timestamp("access_token_expires_at").notNull(),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthApplication.clientId, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    scopes: text("scopes").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [
+    index("oauth_access_token_client_id_idx").on(table.clientId),
+    index("oauth_access_token_user_id_idx").on(table.userId),
+  ],
+);
+
+export const oauthConsent = pgTable(
+  "oauth_consent",
+  {
+    id: text("id").primaryKey(),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthApplication.clientId, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    scopes: text("scopes").notNull(),
+    consentGiven: boolean("consent_given").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (table) => [
+    index("oauth_consent_client_id_idx").on(table.clientId),
+    index("oauth_consent_user_id_idx").on(table.userId),
+  ],
+);
