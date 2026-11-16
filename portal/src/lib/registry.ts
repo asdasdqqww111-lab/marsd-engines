@@ -13,22 +13,142 @@ export interface HudhudApp {
   healthPath: string;
   /** يستهلك PostgreSQL؟ (عزل قواعد البيانات) */
   usesPostgres: boolean;
+  /**
+   * مصدر مسار الصحة — يوثق كيف تحققنا من المسار:
+   * - "verified-source": مسار صحة مخصص موجود فعليًا في شيفرة التطبيق.
+   * - "root-liveness": لا مسار صحة مخصص؛ الجذر "/" يستخدم كفحص حياة فقط.
+   */
+  healthPathSource: "verified-source" | "root-liveness";
 }
 
 /**
  * سجل التطبيقات الرسمي — مصدر واحد للحقيقة للبوابة.
  * الأسماء التقنية والمجلدات كما هي في المستودع دون تغيير.
+ *
+ * مسارات الصحة مُتحقق منها من شيفرة كل تطبيق (2026-11-16):
+ * - osiris-map: /api/health موجود (osiris-map/src/app/api/health/route.ts).
+ * - neureed: /api/health موجود (neureed/app/api/health/route.ts).
+ * - nchat: /api/health موجود (nchat/frontend/src/app/api/health/route.ts).
+ * - umami: /api/heartbeat موجود (docker-compose healthcheck يستخدمه).
+ * - loki-verify / zexa-auth / rhex-forum: لا مسار صحة مخصص في الشيفرة —
+ *   الجذر "/" يُستخدم كفحص حياة صادق (liveness) لا صحة تطبيق (health).
  */
 export const HUDHUD_APPS: HudhudApp[] = [
-  { brandName: "HUDHUD Maps", techId: "osiris-map", description: "ذكاء جغرافي مكاني وخرائط تفاعلية", baseUrlEnv: "HUDHUD_APP_MAPS_URL", healthPath: "/", usesPostgres: false },
-  { brandName: "HUDHUD News", techId: "neureed", description: "تجميع الأخبار ومراقبة المصادر والتغذيات", baseUrlEnv: "HUDHUD_APP_NEWS_URL", healthPath: "/", usesPostgres: true },
-  { brandName: "HUDHUD Verify", techId: "loki-verify", description: "التحقق من الأخبار وإدارة الأدلة", baseUrlEnv: "HUDHUD_APP_VERIFY_URL", healthPath: "/", usesPostgres: false },
-  { brandName: "HUDHUD Identity", techId: "zexa-auth", description: "المصادقة وإدارة الحسابات والأدوار", baseUrlEnv: "HUDHUD_APP_IDENTITY_URL", healthPath: "/", usesPostgres: true },
-  { brandName: "HUDHUD Connect", techId: "nchat", description: "المراسلة والتواصل", baseUrlEnv: "HUDHUD_APP_CONNECT_URL", healthPath: "/", usesPostgres: true },
-  { brandName: "HUDHUD Community", techId: "rhex-forum", description: "المنتديات والنقاشات المجتمعية", baseUrlEnv: "HUDHUD_APP_COMMUNITY_URL", healthPath: "/", usesPostgres: true },
-  { brandName: "HUDHUD Analytics", techId: "umami", description: "التحليلات والإحصاءات ورؤى الاستخدام", baseUrlEnv: "HUDHUD_APP_ANALYTICS_URL", healthPath: "/api/send?x=", usesPostgres: true },
+  {
+    brandName: "HUDHUD Maps",
+    techId: "osiris-map",
+    description: "ذكاء جغرافي مكاني وخرائط تفاعلية",
+    baseUrlEnv: "HUDHUD_APP_MAPS_URL",
+    healthPath: "/api/health",
+    usesPostgres: false,
+    healthPathSource: "verified-source",
+  },
+  {
+    brandName: "HUDHUD News",
+    techId: "neureed",
+    description: "تجميع الأخبار ومراقبة المصادر والتغذيات",
+    baseUrlEnv: "HUDHUD_APP_NEWS_URL",
+    healthPath: "/api/health",
+    usesPostgres: true,
+    healthPathSource: "verified-source",
+  },
+  {
+    brandName: "HUDHUD Verify",
+    techId: "loki-verify",
+    description: "التحقق من الأخبار وإدارة الأدلة",
+    baseUrlEnv: "HUDHUD_APP_VERIFY_URL",
+    healthPath: "/",
+    usesPostgres: false,
+    healthPathSource: "root-liveness",
+  },
+  {
+    brandName: "HUDHUD Identity",
+    techId: "zexa-auth",
+    description: "المصادقة وإدارة الحسابات والأدوار",
+    baseUrlEnv: "HUDHUD_APP_IDENTITY_URL",
+    healthPath: "/",
+    usesPostgres: true,
+    healthPathSource: "root-liveness",
+  },
+  {
+    brandName: "HUDHUD Connect",
+    techId: "nchat",
+    description: "المراسلة والتواصل",
+    baseUrlEnv: "HUDHUD_APP_CONNECT_URL",
+    healthPath: "/api/health",
+    usesPostgres: true,
+    healthPathSource: "verified-source",
+  },
+  {
+    brandName: "HUDHUD Community",
+    techId: "rhex-forum",
+    description: "المنتديات والنقاشات المجتمعية",
+    baseUrlEnv: "HUDHUD_APP_COMMUNITY_URL",
+    healthPath: "/",
+    usesPostgres: true,
+    healthPathSource: "root-liveness",
+  },
+  {
+    brandName: "HUDHUD Analytics",
+    techId: "umami",
+    description: "التحليلات والإحصاءات ورؤى الاستخدام",
+    baseUrlEnv: "HUDHUD_APP_ANALYTICS_URL",
+    healthPath: "/api/heartbeat",
+    usesPostgres: true,
+    healthPathSource: "verified-source",
+  },
 ];
 
 export function getApp(techId: string): HudhudApp | undefined {
   return HUDHUD_APPS.find((a) => a.techId === techId);
 }
+
+/**
+ * مزودو الخدمات الخارجيون لكل تطبيق — مُستخرجون من ملفات .env.example
+ * الفعلية للتطبيقات في المستودع (لا افتراضات). البوابة تعرض حضور/غياب
+ * المتغير فقط؛ لا قيم تُعرض أبدًا ولا اختبار اتصال يُجرى من المتصفح.
+ */
+export interface ProviderRequirement {
+  /** المفتاح في سجل المزودين — ثابت */
+  providerKey: string;
+  /** اسم المزود للعرض */
+  providerName: string;
+  /** متغيرات البيئة المطلوبة لهذا المزود (كما في .env.example للتطبيق) */
+  envVars: readonly string[];
+  /** التطبيق الذي يستهلك المزود (techId) */
+  techId: string;
+}
+
+export const PROVIDER_REQUIREMENTS: ProviderRequirement[] = [
+  {
+    providerKey: "identity-oauth-google",
+    providerName: "Google OAuth",
+    envVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+    techId: "zexa-auth",
+  },
+  {
+    providerKey: "identity-oauth-github",
+    providerName: "GitHub OAuth",
+    envVars: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+    techId: "zexa-auth",
+  },
+  {
+    providerKey: "identity-email-resend",
+    providerName: "Resend (بريد)",
+    envVars: ["RESEND_API_KEY"],
+    techId: "zexa-auth",
+  },
+  {
+    providerKey: "community-redis",
+    providerName: "Redis",
+    envVars: ["REDIS_URL"],
+    techId: "rhex-forum",
+  },
+];
+
+/**
+ * مقدمو بيانات محتوى فعليون في شيفرة التطبيقات (أمثلة موثقة):
+ * - osiris-map: OpenAQ (air-quality route) — مزود خارجي للبيانات.
+ * - loki-verify: LLM client + serper retriever (webapp.py defaults).
+ * لم تُدرج كمزودي تهيئة إلزامية لأن شيفرة التطبيق تتعامل معها داخليًا.
+ */
