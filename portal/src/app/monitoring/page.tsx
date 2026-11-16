@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { appHealthSnapshot } from "@/db/schema";
-import { desc, eq, gte, sql } from "drizzle-orm";
+import { desc, gte } from "drizzle-orm";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
 import { HUDHUD_APPS } from "@/lib/registry";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -42,7 +42,6 @@ export default async function MonitoringPage() {
 
   const since24h = new Date(Date.now() - 24 * 3_600_000);
 
-  // آخر لقطة لكل تطبيق (المزيد تكرارًا = الأحدث أولًا ثم خذ الأولى لكل techId)
   const allRecent = await db
     .select()
     .from(appHealthSnapshot)
@@ -50,7 +49,7 @@ export default async function MonitoringPage() {
     .orderBy(desc(appHealthSnapshot.checkedAt))
     .limit(2000);
 
-  const lastPerApp = new Map<string, typeof allRecent[number]>();
+  const lastPerApp = new Map<string, (typeof allRecent)[number]>();
   for (const row of allRecent) {
     if (!lastPerApp.has(row.techId)) lastPerApp.set(row.techId, row);
   }
