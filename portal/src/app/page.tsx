@@ -41,8 +41,11 @@ export default async function DashboardPage() {
 
   const navLinks = [
     { href: "/", label: "لوحة القيادة", visible: hasPermission(portalRole, "dashboard.view") },
+    { href: "/monitoring", label: "المراقبة", visible: hasPermission(portalRole, "monitoring.view") },
     { href: "/audit", label: "سجل التدقيق", visible: hasPermission(portalRole, "audit.read") },
     { href: "/users", label: "المستخدمون", visible: hasPermission(portalRole, "users.manage") },
+    { href: "/providers", label: "المزودون", visible: hasPermission(portalRole, "settings.manage") },
+    { href: "/backup", label: "النسخ الاحتياطي", visible: hasPermission(portalRole, "settings.manage") },
     { href: "/settings", label: "الإعدادات", visible: hasPermission(portalRole, "settings.manage") },
   ].filter((l) => l.visible);
 
