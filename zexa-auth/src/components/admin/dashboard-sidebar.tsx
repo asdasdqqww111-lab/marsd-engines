@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, Settings, LogOut, GalleryVerticalEnd } from "lucide-react";
+import { Users, Settings, LogOut, GalleryVerticalEnd, LayoutDashboard } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 import {
@@ -18,7 +18,17 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
+/**
+ * HUDHUD M-02 — navigation now covers the full admin panel:
+ * /admin (real overview), /admin/users, /admin/settings (real config states).
+ * The previous sidebar linked to /admin/settings before the route existed.
+ */
 const sidebarNavItems = [
+  {
+    href: "/admin",
+    icon: LayoutDashboard,
+    label: "Dashboard",
+  },
   {
     href: "/admin/users",
     icon: Users,
