@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { checkAppHealth } from "@/lib/health";
 import { HUDHUD_APPS } from "@/lib/registry";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
-import { SignOutButton } from "@/components/SignOutButton";
 import { HealthRefresh } from "@/components/HealthRefresh";
 
 export const dynamic = "force-dynamic";
@@ -39,74 +38,43 @@ export default async function DashboardPage() {
     }),
   );
 
-  const navLinks = [
-    { href: "/", label: "لوحة القيادة", visible: hasPermission(portalRole, "dashboard.view") },
-    { href: "/monitoring", label: "المراقبة", visible: hasPermission(portalRole, "monitoring.view") },
-    { href: "/audit", label: "سجل التدقيق", visible: hasPermission(portalRole, "audit.read") },
-    { href: "/users", label: "المستخدمون", visible: hasPermission(portalRole, "users.manage") },
-    { href: "/providers", label: "المزودون", visible: hasPermission(portalRole, "settings.manage") },
-    { href: "/backup", label: "النسخ الاحتياطي", visible: hasPermission(portalRole, "settings.manage") },
-    { href: "/settings", label: "الإعدادات", visible: hasPermission(portalRole, "settings.manage") },
-  ].filter((l) => l.visible);
+  const counts = { healthy: 0, degraded: 0, down: 0, unknown: 0 };
+  for (const r of results) {
+    counts[(r?.status ?? "unknown") as keyof typeof counts] += 1;
+  }
 
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          marginBottom: "16px",
-        }}
-      >
+    <main>
+      <div className="hudhud-page-head">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
-            هدهد · HUDHUD CONTROL
-          </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
-            لوحة القيادة الموحدة — الحالات أدناه فحص فعلي لحظي
+          <h1 className="hudhud-page-title">لوحة القيادة</h1>
+          <p className="hudhud-page-sub">
+            الحالات أدناه فحص فعلي لحظي — لا مؤشرات وهمية
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
-            {session.user.email}
-          </span>
-          <SignOutButton />
+        <HealthRefresh />
+      </div>
+
+      <section className="hudhud-kpis" aria-label="ملخص صحة التطبيقات">
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-ok">{counts.healthy}</span>
+          <span className="hudhud-kpi-label">يعمل</span>
         </div>
-      </header>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-warn">{counts.degraded}</span>
+          <span className="hudhud-kpi-label">يعمل جزئيًا</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-bad">{counts.down}</span>
+          <span className="hudhud-kpi-label">غير متاح</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value">{counts.unknown}</span>
+          <span className="hudhud-kpi-label">غير معروف</span>
+        </div>
+      </section>
 
-      <nav
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "8px",
-          marginBottom: "24px",
-        }}
-      >
-        {navLinks.map((l) => (
-          <a
-            key={l.href}
-            href={l.href}
-            style={{
-              color: "var(--hudhud-text-primary)",
-              background: "var(--hudhud-surface-2)",
-              border: "1px solid var(--hudhud-border)",
-              borderRadius: "var(--hudhud-radius-sm)",
-              padding: "6px 14px",
-              fontSize: "0.85rem",
-              textDecoration: "none",
-            }}
-          >
-            {l.label}
-          </a>
-        ))}
-      </nav>
-
-      <HealthRefresh />
-
-      <div className="hudhud-surface" style={{ overflowX: "auto" }}>
+      <div className="hudhud-surface" style={{ overflowX: "auto", padding: 0 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "640px" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
@@ -153,7 +121,7 @@ export default async function DashboardPage() {
         </table>
       </div>
 
-      <p style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem", marginTop: "16px" }}>
+      <p className="hudhud-note">
         «غير معروف» تعني أن عنوان التشغيل غير مضبوط — وليس تعطلًا. تعطل البوابة لا يؤثر على التطبيقات؛
         التنقل إليها مباشر دون iframes.
       </p>
