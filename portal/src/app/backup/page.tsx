@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { backupRecord } from "@/db/schema";
+import { backupRecord, restoreRecord } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -10,9 +10,9 @@ import { SignOutButton } from "@/components/SignOutButton";
 export const dynamic = "force-dynamic";
 
 /**
- * صفحة النسخ الاحتياطي والاستعادة — سجل فعلية من backup_record.
- * النسخ تُنفّذ عبر CLI (scripts/backup-core.ts)؛ الاستعادة عملية هادمة
- * تتطلب موافقة صريحة وتُنفّذ من المضيف مباشرة.
+ * صفحة النسخ الاحتياطي والاستعادة — سجلات فعلية من backup_record وrestore_record.
+ * النسخ والاستعادة تُنفَّذ عبر CLI (scripts/backup-core.ts / restore-core.ts)؛
+ * الاستعادة عملية هادمة تتطلب موافقة صريحة وتُنفَّذ من المضيف مباشرة.
  */
 
 function formatBytes(bytes: number | null): string {
@@ -39,6 +39,12 @@ export default async function BackupPage() {
     .from(backupRecord)
     .orderBy(desc(backupRecord.createdAt))
     .limit(30);
+
+  const restores = await db
+    .select()
+    .from(restoreRecord)
+    .orderBy(desc(restoreRecord.createdAt))
+    .limit(20);
 
   const successCount = backups.filter((b) => b.outcome === "success").length;
   const failureCount = backups.filter((b) => b.outcome === "failure").length;
@@ -67,9 +73,9 @@ export default async function BackupPage() {
       </header>
 
       <div className="hudhud-surface" style={{ marginBottom: "24px", padding: "16px" }}>
-        <h2 style={{ fontSize: "1.05rem", margin: "0 0 8px" }}>التشغيل</h2>
-        <p style={{ margin: 0, color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
-          النسخ الاحتياطي يُنفَّذ من المضيف عبر:
+        <h2 style={{ fontSize: "1.05rem", margin: "0 0 8px" }}>التشغيل (من المضيف)</h2>
+        <p style={{ margin: "0 0 8px", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          نسخة احتياطية:
           <code
             style={{
               fontFamily: "var(--hudhud-font-mono)",
@@ -83,11 +89,27 @@ export default async function BackupPage() {
           >
             HUDHUD_BACKUP_DIR=/backups npm run db:backup
           </code>
-          الاستعادة عملية هادمة تتطلب موافقة صريحة موثقة قبل التنفيذ.
+        </p>
+        <p style={{ margin: 0, color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          استعادة (dry-run افتراضيًا؛ --confirm يتطلب موافقة صريحة ونسخة احتياطية حديثة قبلها):
+          <code
+            style={{
+              fontFamily: "var(--hudhud-font-mono)",
+              background: "var(--hudhud-surface-2)",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              margin: "0 6px",
+              direction: "ltr",
+              display: "inline-block",
+            }}
+          >
+            npm run db:restore -- --file hudhud_core_xxx.dump
+          </code>
         </p>
       </div>
 
-      <div className="hudhud-surface" style={{ overflowX: "auto" }}>
+      <h2 style={{ fontSize: "1.05rem", marginBottom: "12px" }}>سجل النسخ الاحتياطي</h2>
+      <div className="hudhud-surface" style={{ overflowX: "auto", marginBottom: "32px" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "760px" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
@@ -135,6 +157,64 @@ export default async function BackupPage() {
                     }}
                   >
                     {b.fileName ?? "—"}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 style={{ fontSize: "1.05rem", marginBottom: "12px" }}>سجل الاستعادة</h2>
+      <div className="hudhud-surface" style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
+              <th style={{ padding: "10px", textAlign: "right" }}>الوقت</th>
+              <th style={{ padding: "10px", textAlign: "right" }}>القاعدة</th>
+              <th style={{ padding: "10px", textAlign: "right" }}>الملف المصدر</th>
+              <th style={{ padding: "10px", textAlign: "right" }}>النتيجة</th>
+            </tr>
+          </thead>
+          <tbody>
+            {restores.length === 0 ? (
+              <tr>
+                <td colSpan={4} style={{ padding: "16px", color: "var(--hudhud-text-secondary)", textAlign: "center" }}>
+                  لا سجلات استعادة بعد — لم تُنفَّذ أي عملية استعادة (حالة صادقة)
+                </td>
+              </tr>
+            ) : (
+              restores.map((r) => (
+                <tr key={r.id} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
+                  <td style={{ padding: "10px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+                    {new Date(r.createdAt).toISOString()}
+                  </td>
+                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
+                    {r.databaseName}
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px",
+                      fontFamily: "var(--hudhud-font-mono)",
+                      fontSize: "0.75rem",
+                      direction: "ltr",
+                    }}
+                  >
+                    {r.backupFileName}
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px",
+                      fontWeight: 600,
+                      color:
+                        r.outcome === "success"
+                          ? "var(--hudhud-success)"
+                          : r.outcome === "dry_run"
+                            ? "var(--hudhud-info)"
+                            : "var(--hudhud-danger)",
+                    }}
+                  >
+                    {r.outcome === "success" ? "نجاح" : r.outcome === "dry_run" ? "تجربة (dry-run)" : "فشل"}
                   </td>
                 </tr>
               ))
