@@ -5,7 +5,6 @@ import { db } from "@/db";
 import { backupRecord, restoreRecord } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -48,180 +47,150 @@ export default async function BackupPage() {
 
   const successCount = backups.filter((b) => b.outcome === "success").length;
   const failureCount = backups.filter((b) => b.outcome === "failure").length;
+  const dryRunCount = restores.filter((r) => r.outcome === "dry_run").length;
 
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
+    <main>
+      <div className="hudhud-page-head">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
-            النسخ الاحتياطي والاستعادة
-          </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          <h1 className="hudhud-page-title">النسخ الاحتياطي والاستعادة</h1>
+          <p className="hudhud-page-sub">
             سجل فعلي من backup_record — {successCount} نجاح، {failureCount} فشل
           </p>
         </div>
-        <SignOutButton />
-      </header>
+      </div>
 
-      <div className="hudhud-surface" style={{ marginBottom: "24px", padding: "16px" }}>
-        <h2 style={{ fontSize: "1.05rem", margin: "0 0 8px" }}>التشغيل (من المضيف)</h2>
+      <section className="hudhud-kpis" aria-label="ملخص النسخ والاستعادة">
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-ok">{successCount}</span>
+          <span className="hudhud-kpi-label">نسخ ناجحة</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-bad">{failureCount}</span>
+          <span className="hudhud-kpi-label">نسخ فاشلة</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-warn">{dryRunCount}</span>
+          <span className="hudhud-kpi-label">تجارب استعادة (dry-run)</span>
+        </div>
+      </section>
+
+      <div className="hudhud-surface hudhud-section">
+        <h2 className="hudhud-section-title">التشغيل (من المضيف)</h2>
         <p style={{ margin: "0 0 8px", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
-          نسخة احتياطية:
-          <code
-            style={{
-              fontFamily: "var(--hudhud-font-mono)",
-              background: "var(--hudhud-surface-2)",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              margin: "0 6px",
-              direction: "ltr",
-              display: "inline-block",
-            }}
-          >
-            HUDHUD_BACKUP_DIR=/backups npm run db:backup
-          </code>
+          نسخة احتياطية: <code className="hudhud-code">HUDHUD_BACKUP_DIR=/backups npm run db:backup</code>
         </p>
         <p style={{ margin: 0, color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
           استعادة (dry-run افتراضيًا؛ --confirm يتطلب موافقة صريحة ونسخة احتياطية حديثة قبلها):
-          <code
-            style={{
-              fontFamily: "var(--hudhud-font-mono)",
-              background: "var(--hudhud-surface-2)",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              margin: "0 6px",
-              direction: "ltr",
-              display: "inline-block",
-            }}
-          >
-            npm run db:restore -- --file hudhud_core_xxx.dump
-          </code>
+          <code className="hudhud-code">npm run db:restore -- --file hudhud_core_xxx.dump</code>
         </p>
       </div>
 
-      <h2 style={{ fontSize: "1.05rem", marginBottom: "12px" }}>سجل النسخ الاحتياطي</h2>
-      <div className="hudhud-surface" style={{ overflowX: "auto", marginBottom: "32px" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "760px" }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-              <th style={{ padding: "10px", textAlign: "right" }}>الوقت</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>القاعدة</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>النتيجة</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>الجداول</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>الحجم</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>الملف</th>
-            </tr>
-          </thead>
-          <tbody>
-            {backups.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ padding: "16px", color: "var(--hudhud-text-secondary)", textAlign: "center" }}>
-                  لا سجلات نسخ بعد — لم تُنفَّذ أي نسخة احتياطية حتى الآن (حالة صادقة، ليست خطأ)
-                </td>
+      <section className="hudhud-section">
+        <h2 className="hudhud-section-title">سجل النسخ الاحتياطي</h2>
+        <div className="hudhud-surface" style={{ overflowX: "auto", marginBottom: 0 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "760px" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
+                <th style={{ padding: "10px", textAlign: "right" }}>الوقت</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>القاعدة</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>النتيجة</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>الجداول</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>الحجم</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>الملف</th>
               </tr>
-            ) : (
-              backups.map((b) => (
-                <tr key={b.id} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-                  <td style={{ padding: "10px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-                    {new Date(b.createdAt).toISOString()}
-                  </td>
-                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
-                    {b.databaseName}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px",
-                      color: b.outcome === "success" ? "var(--hudhud-success)" : "var(--hudhud-danger)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {b.outcome === "success" ? "نجاح" : "فشل"}
-                  </td>
-                  <td style={{ padding: "10px" }}>{b.tablesCount ?? "—"}</td>
-                  <td style={{ padding: "10px" }}>{formatBytes(b.sizeBytes)}</td>
-                  <td
-                    style={{
-                      padding: "10px",
-                      fontFamily: "var(--hudhud-font-mono)",
-                      fontSize: "0.75rem",
-                      direction: "ltr",
-                    }}
-                  >
-                    {b.fileName ?? "—"}
+            </thead>
+            <tbody>
+              {backups.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: "16px", color: "var(--hudhud-text-secondary)", textAlign: "center" }}>
+                    لا سجلات نسخ بعد — لم تُنفَّذ أي نسخة احتياطية حتى الآن (حالة صادقة، ليست خطأ)
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                backups.map((b) => (
+                  <tr key={b.id} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
+                    <td style={{ padding: "10px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+                      {new Date(b.createdAt).toISOString()}
+                    </td>
+                    <td style={{ padding: "10px" }}>
+                      <code className="hudhud-code">{b.databaseName}</code>
+                    </td>
+                    <td style={{ padding: "10px" }}>
+                      <span
+                        className={
+                          b.outcome === "success"
+                            ? "hudhud-badge hudhud-badge-ok"
+                            : "hudhud-badge hudhud-badge-bad"
+                        }
+                      >
+                        {b.outcome === "success" ? "نجاح" : "فشل"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px" }}>{b.tablesCount ?? "—"}</td>
+                    <td style={{ padding: "10px" }}>{formatBytes(b.sizeBytes)}</td>
+                    <td style={{ padding: "10px", fontSize: "0.75rem" }}>
+                      <code className="hudhud-code">{b.fileName ?? "—"}</code>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <h2 style={{ fontSize: "1.05rem", marginBottom: "12px" }}>سجل الاستعادة</h2>
-      <div className="hudhud-surface" style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-              <th style={{ padding: "10px", textAlign: "right" }}>الوقت</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>القاعدة</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>الملف المصدر</th>
-              <th style={{ padding: "10px", textAlign: "right" }}>النتيجة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {restores.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={{ padding: "16px", color: "var(--hudhud-text-secondary)", textAlign: "center" }}>
-                  لا سجلات استعادة بعد — لم تُنفَّذ أي عملية استعادة (حالة صادقة)
-                </td>
+      <section className="hudhud-section">
+        <h2 className="hudhud-section-title">سجل الاستعادة</h2>
+        <div className="hudhud-surface" style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
+                <th style={{ padding: "10px", textAlign: "right" }}>الوقت</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>القاعدة</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>الملف المصدر</th>
+                <th style={{ padding: "10px", textAlign: "right" }}>النتيجة</th>
               </tr>
-            ) : (
-              restores.map((r) => (
-                <tr key={r.id} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
-                  <td style={{ padding: "10px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-                    {new Date(r.createdAt).toISOString()}
-                  </td>
-                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
-                    {r.databaseName}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px",
-                      fontFamily: "var(--hudhud-font-mono)",
-                      fontSize: "0.75rem",
-                      direction: "ltr",
-                    }}
-                  >
-                    {r.backupFileName}
-                  </td>
-                  <td
-                    style={{
-                      padding: "10px",
-                      fontWeight: 600,
-                      color:
-                        r.outcome === "success"
-                          ? "var(--hudhud-success)"
-                          : r.outcome === "dry_run"
-                            ? "var(--hudhud-info)"
-                            : "var(--hudhud-danger)",
-                    }}
-                  >
-                    {r.outcome === "success" ? "نجاح" : r.outcome === "dry_run" ? "تجربة (dry-run)" : "فشل"}
+            </thead>
+            <tbody>
+              {restores.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: "16px", color: "var(--hudhud-text-secondary)", textAlign: "center" }}>
+                    لا سجلات استعادة بعد — لم تُنفَّذ أي عملية استعادة (حالة صادقة)
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                restores.map((r) => (
+                  <tr key={r.id} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
+                    <td style={{ padding: "10px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+                      {new Date(r.createdAt).toISOString()}
+                    </td>
+                    <td style={{ padding: "10px" }}>
+                      <code className="hudhud-code">{r.databaseName}</code>
+                    </td>
+                    <td style={{ padding: "10px" }}>
+                      <code className="hudhud-code">{r.backupFileName}</code>
+                    </td>
+                    <td style={{ padding: "10px" }}>
+                      <span
+                        className={
+                          r.outcome === "success"
+                            ? "hudhud-badge hudhud-badge-ok"
+                            : r.outcome === "dry_run"
+                              ? "hudhud-badge hudhud-badge-info"
+                              : "hudhud-badge hudhud-badge-bad"
+                        }
+                      >
+                        {r.outcome === "success" ? "نجاح" : r.outcome === "dry_run" ? "تجربة (dry-run)" : "فشل"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
   );
 }

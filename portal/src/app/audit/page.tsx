@@ -6,7 +6,6 @@ import { auditEvent } from "@/db/schema";
 import { desc, eq, ilike, and, type SQL } from "drizzle-orm";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
 import { HUDHUD_APPS } from "@/lib/registry";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -59,52 +58,20 @@ export default async function AuditPage({
   const totalCount = events.length;
 
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
+    <main>
+      <div className="hudhud-page-head">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
-            مركز التدقيق
-          </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          <h1 className="hudhud-page-title">مركز التدقيق</h1>
+          <p className="hudhud-page-sub">
             {totalCount} حدث — من فعل ماذا ومتى، مع تنقية أسرار تلقائية
           </p>
         </div>
-        <SignOutButton />
-      </header>
+      </div>
 
-      <form
-        method="GET"
-        className="hudhud-surface"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "12px",
-          alignItems: "flex-end",
-          marginBottom: "16px",
-        }}
-      >
-        <label style={{ display: "grid", gap: "4px", fontSize: "0.8rem" }}>
+      <form method="GET" className="hudhud-surface hudhud-form-row">
+        <label className="hudhud-field">
           الهدف
-          <select
-            name="target"
-            defaultValue={target ?? ""}
-            style={{
-              background: "var(--hudhud-surface-2)",
-              color: "var(--hudhud-text-primary)",
-              border: "1px solid var(--hudhud-border)",
-              borderRadius: "var(--hudhud-radius-sm)",
-              padding: "8px 10px",
-            }}
-          >
+          <select name="target" defaultValue={target ?? ""} className="hudhud-select">
             <option value="">الكل</option>
             <option value="portal">portal</option>
             <option value="hudhud_core">hudhud_core</option>
@@ -116,37 +83,21 @@ export default async function AuditPage({
           </select>
         </label>
 
-        <label style={{ display: "grid", gap: "4px", fontSize: "0.8rem" }}>
+        <label className="hudhud-field">
           الإجراء (يحتوي)
           <input
             name="action"
             defaultValue={action ?? ""}
             maxLength={64}
             placeholder="مثال: users.role_change"
-            style={{
-              background: "var(--hudhud-surface-2)",
-              color: "var(--hudhud-text-primary)",
-              border: "1px solid var(--hudhud-border)",
-              borderRadius: "var(--hudhud-radius-sm)",
-              padding: "8px 10px",
-              direction: "ltr",
-            }}
+            className="hudhud-input"
+            style={{ direction: "ltr" }}
           />
         </label>
 
-        <label style={{ display: "grid", gap: "4px", fontSize: "0.8rem" }}>
+        <label className="hudhud-field">
           النتيجة
-          <select
-            name="outcome"
-            defaultValue={outcome ?? ""}
-            style={{
-              background: "var(--hudhud-surface-2)",
-              color: "var(--hudhud-text-primary)",
-              border: "1px solid var(--hudhud-border)",
-              borderRadius: "var(--hudhud-radius-sm)",
-              padding: "8px 10px",
-            }}
-          >
+          <select name="outcome" defaultValue={outcome ?? ""} className="hudhud-select">
             <option value="">الكل</option>
             <option value="success">نجاح</option>
             <option value="failure">فشل</option>
@@ -183,20 +134,22 @@ export default async function AuditPage({
                     {new Date(e.createdAt).toISOString()}
                   </td>
                   <td style={{ padding: "10px", fontSize: "0.85rem" }}>{e.actorEmail ?? "system"}</td>
-                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem", direction: "ltr" }}>
-                    {e.action}
+                  <td style={{ padding: "10px" }}>
+                    <code className="hudhud-code">{e.action}</code>
                   </td>
-                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem", direction: "ltr" }}>
-                    {e.target ?? "—"}
+                  <td style={{ padding: "10px" }}>
+                    <code className="hudhud-code">{e.target ?? "—"}</code>
                   </td>
-                  <td
-                    style={{
-                      padding: "10px",
-                      fontSize: "0.85rem",
-                      color: e.outcome === "success" ? "var(--hudhud-success)" : "var(--hudhud-danger)",
-                    }}
-                  >
-                    {e.outcome === "success" ? "نجاح" : "فشل"}
+                  <td style={{ padding: "10px" }}>
+                    <span
+                      className={
+                        e.outcome === "success"
+                          ? "hudhud-badge hudhud-badge-ok"
+                          : "hudhud-badge hudhud-badge-bad"
+                      }
+                    >
+                      {e.outcome === "success" ? "نجاح" : "فشل"}
+                    </span>
                   </td>
                 </tr>
               ))
@@ -205,7 +158,7 @@ export default async function AuditPage({
         </table>
       </div>
 
-      <p style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem", marginTop: "16px" }}>
+      <p className="hudhud-note">
         الفلاتر تعمل على أعمدة مفهرسة فقط (target/action/outcome). لا بحث حر في metadata لتجنب
         استعلامات مكلفة على jsonb.
       </p>

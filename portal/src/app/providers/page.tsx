@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
 import { PROVIDER_REQUIREMENTS } from "@/lib/registry";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -33,28 +32,29 @@ export default async function ProvidersPage() {
     return { ...p, envs, configured: envs.every((e) => e.present) };
   });
 
+  const configuredCount = providers.filter((p) => p.configured).length;
+
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
+    <main>
+      <div className="hudhud-page-head">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
-            إدارة المزودين
-          </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          <h1 className="hudhud-page-title">إدارة المزودين</h1>
+          <p className="hudhud-page-sub">
             حالة التهيئة الفعلية من متغيرات البيئة — حضور/غياب فقط، لا قيم أسرار تُعرض
           </p>
         </div>
-        <SignOutButton />
-      </header>
+      </div>
+
+      <section className="hudhud-kpis" aria-label="ملخص تهيئة المزودين">
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-ok">{configuredCount}</span>
+          <span className="hudhud-kpi-label">مضبوط</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-warn">{providers.length - configuredCount}</span>
+          <span className="hudhud-kpi-label">غير مكتمل</span>
+        </div>
+      </section>
 
       <div className="hudhud-surface" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
@@ -72,8 +72,8 @@ export default async function ProvidersPage() {
                 <td style={{ padding: "12px" }}>
                   <strong>{p.providerName}</strong>
                 </td>
-                <td style={{ padding: "12px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
-                  {p.techId}
+                <td style={{ padding: "12px" }}>
+                  <code className="hudhud-code">{p.techId}</code>
                 </td>
                 <td style={{ padding: "12px" }}>
                   <div style={{ display: "grid", gap: "4px" }}>
@@ -85,20 +85,17 @@ export default async function ProvidersPage() {
                           gap: "8px",
                           alignItems: "center",
                           fontSize: "0.8rem",
+                          flexWrap: "wrap",
                         }}
                       >
-                        <code
-                          style={{
-                            fontFamily: "var(--hudhud-font-mono)",
-                            background: "var(--hudhud-surface-2)",
-                            padding: "1px 6px",
-                            borderRadius: "4px",
-                            direction: "ltr",
-                          }}
+                        <code className="hudhud-code">{e.name}</code>
+                        <span
+                          className={
+                            e.present
+                              ? "hudhud-badge hudhud-badge-ok"
+                              : "hudhud-badge hudhud-badge-bad"
+                          }
                         >
-                          {e.name}
-                        </code>
-                        <span style={{ color: e.present ? "var(--hudhud-success)" : "var(--hudhud-danger)" }}>
                           {e.present ? "معرَّف" : "غير معرَّف"}
                         </span>
                       </div>
@@ -107,11 +104,9 @@ export default async function ProvidersPage() {
                 </td>
                 <td style={{ padding: "12px" }}>
                   {p.configured ? (
-                    <span style={{ color: "var(--hudhud-success)", fontWeight: 600 }}>مضبوط</span>
+                    <span className="hudhud-badge hudhud-badge-ok">مضبوط</span>
                   ) : (
-                    <span style={{ color: "var(--hudhud-warning)", fontWeight: 600 }}>
-                      غير مكتمل
-                    </span>
+                    <span className="hudhud-badge hudhud-badge-warn">غير مكتمل</span>
                   )}
                 </td>
               </tr>
@@ -120,7 +115,7 @@ export default async function ProvidersPage() {
         </table>
       </div>
 
-      <p style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem", marginTop: "16px" }}>
+      <p className="hudhud-note">
         إعداد القيم يتم عبر secret manager أو بيئة التشغيل للتطبيق المعني — البوابة تقرأ فقط
         وتعرض الحضور/الغياب، ولا تقبل إدخال أسرار عبر الواجهة أبدًا.
       </p>

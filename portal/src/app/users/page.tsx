@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { user } from "@/db/schema";
 import { hasPermission, normalizeRole } from "@/lib/rbac";
-import { SignOutButton } from "@/components/SignOutButton";
 import { UserRoleSelect } from "@/components/UserRoleSelect";
 
 export const dynamic = "force-dynamic";
@@ -36,27 +35,15 @@ export default async function UsersPage() {
     .orderBy(user.createdAt);
 
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
+    <main>
+      <div className="hudhud-page-head">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
-            مستخدمو البوابة
-          </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
-            مشغّلو HUDHUD CONTROL — الأدوار فعلية من قاعدة hudhud_core، وكل تغيير يُسجَّل في التدقيق
+          <h1 className="hudhud-page-title">مستخدمو البوابة</h1>
+          <p className="hudhud-page-sub">
+            مشغّلو HUDHUD CONTROL — الأدوار فعلية من قاعدة hudhud_core، وكل تغيير يُسجّل في التدقيق
           </p>
         </div>
-        <SignOutButton />
-      </header>
+      </div>
 
       <div className="hudhud-surface" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "760px" }}>
@@ -73,17 +60,17 @@ export default async function UsersPage() {
             {rows.map((u) => (
               <tr key={u.id} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                 <td style={{ padding: "10px" }}>{u.name}</td>
-                <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
-                  {u.email}
+                <td style={{ padding: "10px" }}>
+                  <code className="hudhud-code">{u.email}</code>
                 </td>
                 <td style={{ padding: "10px" }}>
                   <UserRoleSelect userId={u.id} currentRole={u.portalRole} />
                 </td>
                 <td style={{ padding: "10px" }}>
                   {u.banned ? (
-                    <span style={{ color: "var(--hudhud-danger)" }}>محظور</span>
+                    <span className="hudhud-badge hudhud-badge-bad">محظور</span>
                   ) : (
-                    <span style={{ color: "var(--hudhud-success)" }}>نشط</span>
+                    <span className="hudhud-badge hudhud-badge-ok">نشط</span>
                   )}
                 </td>
                 <td style={{ padding: "10px", fontSize: "0.8rem", color: "var(--hudhud-text-secondary)" }}>
@@ -102,7 +89,7 @@ export default async function UsersPage() {
         </table>
       </div>
 
-      <p style={{ color: "var(--hudhud-text-secondary)", fontSize: "0.8rem", marginTop: "16px" }}>
+      <p className="hudhud-note">
         إنشاء الحسابات يتم عبر السكربت المصرح به فقط (disableSignUp)؛ لوحة البوابة تعدّل الأدوار لا كلمات المرور.
       </p>
     </main>

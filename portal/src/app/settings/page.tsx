@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { hasPermission, normalizeRole, PORTAL_ROLES, PERMISSION_MATRIX } from "@/lib/rbac";
 import { HUDHUD_APPS } from "@/lib/registry";
-import { SignOutButton } from "@/components/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -48,33 +47,32 @@ export default async function SettingsPage() {
     configured: Boolean(process.env[app.baseUrlEnv]),
   }));
 
+  const configuredApps = appUrls.filter((a) => a.configured).length;
+
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <header
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
+    <main>
+      <div className="hudhud-page-head">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem", color: "var(--hudhud-accent)" }}>
-            إعدادات النظام
-          </h1>
-          <p style={{ margin: "4px 0 0", color: "var(--hudhud-text-secondary)", fontSize: "0.85rem" }}>
+          <h1 className="hudhud-page-title">إعدادات النظام</h1>
+          <p className="hudhud-page-sub">
             عرض للتهيئة الفعلية — القيم الحساسة تظهر كمعرَّفة أو غير معرَّفة فقط
           </p>
         </div>
-        <SignOutButton />
-      </header>
+      </div>
 
-      <section style={{ marginBottom: "32px" }}>
-        <h2 style={{ fontSize: "1.05rem", marginBottom: "12px" }}>
-          تهيئة البوابة
-        </h2>
+      <section className="hudhud-kpis" aria-label="ملخص التهيئة">
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-ok">{configuredApps}</span>
+          <span className="hudhud-kpi-label">تطبيقات مضبوطة العنوان</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-warn">{appUrls.length - configuredApps}</span>
+          <span className="hudhud-kpi-label">بلا عنوان تشغيل</span>
+        </div>
+      </section>
+
+      <section className="hudhud-section">
+        <h2 className="hudhud-section-title">تهيئة البوابة</h2>
         <div className="hudhud-surface" style={{ padding: "16px", display: "grid", gap: "10px" }}>
           <EnvRow label="قاعدة بيانات hudhud_core" present={envPresence.databaseUrl} />
           <EnvRow label="سر المصادقة BETTER_AUTH_SECRET" present={envPresence.betterAuthSecret} />
@@ -82,10 +80,8 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <section style={{ marginBottom: "32px" }}>
-        <h2 style={{ fontSize: "1.05rem", marginBottom: "12px" }}>
-          عناوين التشغيل للتطبيقات
-        </h2>
+      <section className="hudhud-section">
+        <h2 className="hudhud-section-title">عناوين التشغيل للتطبيقات</h2>
         <div className="hudhud-surface" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
             <thead>
@@ -99,14 +95,14 @@ export default async function SettingsPage() {
               {appUrls.map((a) => (
                 <tr key={a.techId} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                   <td style={{ padding: "10px" }}>{a.brandName}</td>
-                  <td style={{ padding: "10px", fontFamily: "var(--hudhud-font-mono)", fontSize: "0.8rem" }}>
-                    {a.techId}
+                  <td style={{ padding: "10px" }}>
+                    <code className="hudhud-code">{a.techId}</code>
                   </td>
                   <td style={{ padding: "10px" }}>
                     {a.configured ? (
-                      <span style={{ color: "var(--hudhud-success)" }}>مضبوط</span>
+                      <span className="hudhud-badge hudhud-badge-ok">مضبوط</span>
                     ) : (
-                      <span style={{ color: "var(--hudhud-text-secondary)" }}>غير مضبوط</span>
+                      <span className="hudhud-badge hudhud-badge-muted">غير مضبوط</span>
                     )}
                   </td>
                 </tr>
@@ -116,10 +112,8 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <section>
-        <h2 style={{ fontSize: "1.05rem", marginBottom: "12px" }}>
-          مصفوفة الأدوار والصلاحيات
-        </h2>
+      <section className="hudhud-section">
+        <h2 className="hudhud-section-title">مصفوفة الأدوار والصلاحيات</h2>
         <div className="hudhud-surface" style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "640px" }}>
             <thead>
@@ -138,7 +132,11 @@ export default async function SettingsPage() {
                   <td style={{ padding: "10px" }}>{PERMISSION_LABELS[perm]}</td>
                   {PORTAL_ROLES.map((r) => (
                     <td key={r} style={{ padding: "10px" }}>
-                      {PERMISSION_MATRIX[r].includes(perm as never) ? "✔" : "—"}
+                      {PERMISSION_MATRIX[r].includes(perm as never) ? (
+                        <span className="hudhud-badge hudhud-badge-ok">✔</span>
+                      ) : (
+                        <span style={{ color: "var(--hudhud-text-secondary)" }}>—</span>
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -155,7 +153,7 @@ function EnvRow({ label, present }: { label: string; present: boolean }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
       <span>{label}</span>
-      <span style={{ color: present ? "var(--hudhud-success)" : "var(--hudhud-danger)" }}>
+      <span className={present ? "hudhud-badge hudhud-badge-ok" : "hudhud-badge hudhud-badge-bad"}>
         {present ? "معرَّفة" : "غير معرَّفة — راجع .env.example"}
       </span>
     </div>
