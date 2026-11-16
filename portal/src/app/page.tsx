@@ -2,22 +2,24 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { checkAppHealth } from "@/lib/health";
-import { HUDHUD_APPS } from "@/lib/registry";
-import { hasPermission, normalizeRole } from "@/lib/rbac";
+import { HUDHUD_APPS, type AppStatus } from "@/lib/registry";
+import { normalizeRole } from "@/lib/rbac";
 import { HealthRefresh } from "@/components/HealthRefresh";
 
 export const dynamic = "force-dynamic";
 
-const L: Record<string, string> = {
+const L: Record<AppStatus, string> = {
   healthy: "يعمل",
   degraded: "يعمل جزئيًا",
+  starting: "قيد التهيئة",
   down: "غير متاح",
   unknown: "غير معروف",
 };
 
-const C: Record<string, string> = {
+const C: Record<AppStatus, string> = {
   healthy: "var(--hudhud-success)",
   degraded: "var(--hudhud-warning)",
+  starting: "var(--hudhud-warning)",
   down: "var(--hudhud-danger)",
   unknown: "var(--hudhud-text-secondary)",
 };
@@ -27,10 +29,6 @@ export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: h });
   if (!session) redirect("/login");
 
-  const portalRole = normalizeRole(
-    (session.user as { portalRole?: string | null }).portalRole,
-  );
-
   const results = await Promise.all(
     HUDHUD_APPS.map(async (app) => {
       const baseUrl = process.env[app.baseUrlEnv];
@@ -38,9 +36,15 @@ export default async function DashboardPage() {
     }),
   );
 
-  const counts = { healthy: 0, degraded: 0, down: 0, unknown: 0 };
+  const counts: Record<AppStatus, number> = {
+    healthy: 0,
+    degraded: 0,
+    starting: 0,
+    down: 0,
+    unknown: 0,
+  };
   for (const r of results) {
-    counts[(r?.status ?? "unknown") as keyof typeof counts] += 1;
+    counts[(r?.status ?? "unknown") as AppStatus] += 1;
   }
 
   return (
@@ -63,6 +67,10 @@ export default async function DashboardPage() {
         <div className="hudhud-kpi">
           <span className="hudhud-kpi-value hudhud-warn">{counts.degraded}</span>
           <span className="hudhud-kpi-label">يعمل جزئيًا</span>
+        </div>
+        <div className="hudhud-kpi">
+          <span className="hudhud-kpi-value hudhud-warn">{counts.starting}</span>
+          <span className="hudhud-kpi-label">قيد التهيئة</span>
         </div>
         <div className="hudhud-kpi">
           <span className="hudhud-kpi-value hudhud-bad">{counts.down}</span>
@@ -88,7 +96,7 @@ export default async function DashboardPage() {
           <tbody>
             {HUDHUD_APPS.map((app) => {
               const r = results.find((x) => x.techId === app.techId);
-              const status = r?.status ?? "unknown";
+              const status: AppStatus = r?.status ?? "unknown";
               return (
                 <tr key={app.techId} style={{ borderBottom: "1px solid var(--hudhud-border)" }}>
                   <td style={{ padding: "12px" }}>
@@ -122,7 +130,8 @@ export default async function DashboardPage() {
       </div>
 
       <p className="hudhud-note">
-        «غير معروف» تعني أن عنوان التشغيل غير مضبوط — وليس تعطلًا. تعطل البوابة لا يؤثر على التطبيقات؛
+        «غير معروف» تعني أن عنوان التشغيل غير مضبوط — وليس تعطلًا. «قيد التهيئة» تعني أن
+        العملية قائمة لكن الخدمة أبلغت بجاهزية not_ready. تعطل البوابة لا يؤثر على التطبيقات؛
         التنقل إليها مباشر دون iframes.
       </p>
     </main>

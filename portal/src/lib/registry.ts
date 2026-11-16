@@ -1,4 +1,9 @@
-export type AppStatus = "unknown" | "healthy" | "degraded" | "down";
+export type AppStatus =
+  | "unknown"
+  | "starting"
+  | "healthy"
+  | "degraded"
+  | "down";
 
 export interface HudhudApp {
   /** الاسم الرسمي بالهوية الموحدة */
@@ -19,6 +24,13 @@ export interface HudhudApp {
    * - "root-liveness": لا مسار صحة مخصص؛ الجذر "/" يستخدم كفحص حياة فقط.
    */
   healthPathSource: "verified-source" | "root-liveness";
+  /**
+   * مستوى عقد readiness الذي يصدره التطبيق (M-08):
+   * - "none": العقد liveness فقط — البوابة تعرض الحالة كما هي دون ادعاء جاهزية.
+   * - "readiness-level": العقد يصدر readiness.level صادقًا
+   *   (loki-verify: ready/degraded/not_ready — M-03) وتستهلكه البوابة.
+   */
+  readinessContract: "none" | "readiness-level";
 }
 
 /**
@@ -32,6 +44,7 @@ export interface HudhudApp {
  * - umami: /api/heartbeat (docker-compose healthcheck).
  * - loki-verify: /api/health — أُضيف بعقد HUDHUD
  *   (loki-verify/health.py + تسجيل blueprint في webapp.py).
+ *   عقد readiness حقيقي بثلاثة مستويات ready/degraded/not_ready (M-03).
  * - zexa-auth: /api/health — أُضيف بعقد HUDHUD
  *   (zexa-auth/src/app/api/health/route.ts). يجب إبقاؤه عامًا في proxy.ts.
  * - rhex-forum: /api/health — أُضيف بعقد HUDHUD
@@ -46,6 +59,7 @@ export const HUDHUD_APPS: HudhudApp[] = [
     healthPath: "/api/health",
     usesPostgres: false,
     healthPathSource: "verified-source",
+    readinessContract: "none",
   },
   {
     brandName: "HUDHUD News",
@@ -55,6 +69,7 @@ export const HUDHUD_APPS: HudhudApp[] = [
     healthPath: "/api/health",
     usesPostgres: true,
     healthPathSource: "verified-source",
+    readinessContract: "none",
   },
   {
     brandName: "HUDHUD Verify",
@@ -64,6 +79,7 @@ export const HUDHUD_APPS: HudhudApp[] = [
     healthPath: "/api/health",
     usesPostgres: false,
     healthPathSource: "verified-source",
+    readinessContract: "readiness-level",
   },
   {
     brandName: "HUDHUD Identity",
@@ -73,6 +89,7 @@ export const HUDHUD_APPS: HudhudApp[] = [
     healthPath: "/api/health",
     usesPostgres: true,
     healthPathSource: "verified-source",
+    readinessContract: "none",
   },
   {
     brandName: "HUDHUD Connect",
@@ -82,6 +99,7 @@ export const HUDHUD_APPS: HudhudApp[] = [
     healthPath: "/api/health",
     usesPostgres: true,
     healthPathSource: "verified-source",
+    readinessContract: "none",
   },
   {
     brandName: "HUDHUD Community",
@@ -91,6 +109,7 @@ export const HUDHUD_APPS: HudhudApp[] = [
     healthPath: "/api/health",
     usesPostgres: true,
     healthPathSource: "verified-source",
+    readinessContract: "none",
   },
   {
     brandName: "HUDHUD Analytics",
@@ -100,6 +119,7 @@ export const HUDHUD_APPS: HudhudApp[] = [
     healthPath: "/api/heartbeat",
     usesPostgres: true,
     healthPathSource: "verified-source",
+    readinessContract: "none",
   },
 ];
 
